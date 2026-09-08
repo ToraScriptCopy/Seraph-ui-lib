@@ -1,0 +1,104 @@
+SERAPH RAW DOCUMENTATION
+
+PURPOSE
+Seraph is a dependency-free Roblox/Luau UI library loaded from one raw source.lua file. It provides a browser-like Material-inspired window, themes, side or top tabs, functional controls, music playback, notifications, dialogs, and local configuration files.
+
+LOAD
+local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"))()
+
+WINDOW
+local Window = Seraph:CreateWindow({
+    Title = "Seraph",
+    Author = "Project",
+    Icon = 17332630292,
+    Theme = "Seraph Dark",
+    TabMode = "Left", -- Left or Top
+    ToggleKey = Enum.KeyCode.RightShift,
+    Size = {X = 720, Y = 520},
+    Folder = "MyWindow",
+    RootFolder = "Workspace",
+    Tag = {Text = "BETA", Side = "right"},
+})
+
+WINDOW METHODS
+Tab, CreateTab, AddTab, Notify, Popup, SetTheme, AddTheme, SetTag, Toggle, SetVisible, Minimize, BindKey, Destroy, ConfigureProtection.
+
+TABS AND SECTIONS
+local Tab = Window:Tab({Title = "Main", Icon = 17332630310})
+Tab:TabSection("Group") -- sidebar mode only
+local Section = Tab:Section({Title = "Controls"})
+
+All element methods work on Tab and Section. Tab-level calls use an implicit default section.
+
+ELEMENTS
+Toggle, Checkbox, Button, Slider, Input, Dropdown, MultiDropdown, Keybind, Colorpicker, Code, Music, Paragraph, Divider, Space, Tag.
+
+Common fields: Title, Desc, Tag, Default, Value, Flag, Callback, LayoutOrder.
+
+Example:
+local toggle = Section:Toggle({
+    Title = "Toggle",
+    Default = false,
+    Flag = "ToggleFlag",
+    Callback = function(value) print(value) end,
+})
+toggle:Set(true)
+print(toggle:Get())
+
+ICONS
+Seraph:RegisterIcon("home", 17332630310)
+Seraph:RegisterLucideIcon("settings", "rbxassetid://17332630292")
+Accepted icon sources: numeric asset IDs, rbxassetid strings, URLs, {Id = ...}, {AssetId = ...}, and registered names. Lucide support is an asset-name registry; map names to real Roblox image assets.
+External Lucide support: Seraph:UseLucide({home = 17332630310, settings = 17332630292}) or Seraph:SetIconProvider(function(name) return Lucide[name] end).
+
+THEMES
+Built-in themes: Seraph Dark, Seraph Light, Seraph Midnight.
+
+Seraph:AddTheme({
+    Name = "Custom",
+    Accent = Color3.fromRGB(14, 165, 233),
+    WindowBackground = Color3.fromRGB(8, 18, 32),
+    ElementBackground = Color3.fromRGB(16, 40, 64),
+    Text = Color3.fromRGB(240, 249, 255),
+})
+Window:SetTheme("Custom")
+
+CONFIGS
+Flags are saved automatically. Explicit registration is supported:
+
+local ToggleElement = Tab:Toggle({Title = "Toggle", Flag = "ToggleElement"})
+local myConfig = Window.ConfigManager:CreateConfig("config1")
+myConfig:Register("toggleNameExample", ToggleElement)
+myConfig:Save()
+myConfig:Load()
+
+Default path:
+Workspace/Seraph/{Window.Folder}/config/config1.json
+
+The manager checks makefolder, writefile, readfile, isfile, listfiles, and delfile and fails safely if a file API is unavailable.
+
+MUSIC
+Section:Music({
+    Title = "Playlist",
+    Playlist = {
+        {Id = 1843529634, Name = "Track one"},
+        {Id = 1843529603, Name = "Track two"},
+    },
+    AutoPlay = false,
+    AutoPlayNext = true,
+    AllowReorder = true,
+})
+
+The player has play/pause, previous/next, separate music volume, game volume, and optional playlist reordering.
+
+ARXPROTECT
+ArxProtect only seals local configuration state. It is not an anti-detection, anti-analysis, hierarchy-hiding, or security-bypass system.
+
+local Window = Seraph:CreateWindow({
+    ConfigProtection = true,
+    ConfigKey = "local-key",
+    AutoSealConfig = true,
+    ConfigProtectionInterval = 30,
+})
+
+The key is client-side and reversible. Do not store secrets. Use server-side authorization for sensitive actions.
