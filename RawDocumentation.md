@@ -16,7 +16,7 @@ local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraSc
 local Window = Seraph:CreateWindow({
     Title = "Seraph",
     Author = "Project",
-    Icon = 17332630292,
+    LogoTextureId = 17332630292,
     Theme = "Seraph Dark",
     TabMode = "Left", -- Left or Top
     ToggleKey = Enum.KeyCode.RightShift,
@@ -27,7 +27,9 @@ local Window = Seraph:CreateWindow({
 })
 ```
 
-Window methods: `Tab`, `CreateTab`, `AddTab`, `Notify`, `Popup`, `SetTheme`, `AddTheme`, `SetTag`, `Toggle`, `SetVisible`, `Minimize`, `BindKey`, `Destroy`, `ConfigureProtection`.
+The default window logo is rendered through `ImageLabel.Image` with texture/image ID `17332630292`. It does not use asset ID `17332630310` for the main logo. Override it with `LogoTextureId` or call `Window:SetLogo(textureId)` / `Window:SetLogoTexture(textureId)` after creating the window.
+
+Window methods: `Tab`, `CreateTab`, `AddTab`, `Notify`, `Popup`, `SetTheme`, `AddTheme`, `SetTag`, `SetLogo`, `SetLogoTexture`, `Toggle`, `SetVisible`, `Minimize`, `BindKey`, `Destroy`, `ConfigureProtection`.
 
 The browser toolbar includes a search field and a route label. Search is case-insensitive and matches tab names, section titles, element titles, descriptions, and tags.
 

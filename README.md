@@ -52,7 +52,7 @@ Window:SetSearchEnabled(false)
 local Window = Seraph:CreateWindow({
     Title = "Seraph Browser",
     Author = "Project name",
-    Icon = 17332630292,
+    LogoTextureId = 17332630292,
     Theme = "Seraph Dark",
     TabMode = "Left",
     Size = {X = 780, Y = 570},
@@ -73,6 +73,8 @@ local Section = Tab:Section({Title = "Settings"})
 ```
 
 `Side` у тега принимает `left`, `center` или `right`. У отдельного элемента можно указать `Tag = "Info"` или `Tag = {Text = "Info"}`.
+
+Главный логотип рендерится через `ImageLabel.Image` как texture/image ID `17332630292`, а не через asset ID `17332630310`. Можно заменить его при создании окна через `LogoTextureId` или после создания через `Window:SetLogo(textureId)` / `Window:SetLogoTexture(textureId)`.
 
 Методы элементов доступны напрямую у вкладки и у секции:
 
@@ -267,7 +269,7 @@ Seraph:UseLucide(Lucide)
 
 `RegisterLucideIcon` — локальный реестр имён. Если `LoadIcons` не вызывается, конкретное имя должно быть сопоставлено с реальным Roblox image asset в вашем проекте; это позволяет использовать библиотеку без дополнительного сетевого запроса. Если нужны все наборы Icons V2, используйте `LoadIcons` один раз перед созданием окна.
 
-Логотип по умолчанию настроен на предоставленные asset IDs: `17332630310` и `17332630292`.
+Логотип по умолчанию использует texture ID `17332630292`. Asset ID `17332630310` оставлен только для совместимости с пользовательскими иконками вкладок и старым кодом.
 
 ## Темы
 

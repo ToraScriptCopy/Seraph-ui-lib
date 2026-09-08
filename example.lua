@@ -29,7 +29,7 @@ Seraph:RegisterLucideIcon("settings", 17332630310)
 local Window = Seraph:CreateWindow({
     Title = "Seraph Browser",
     Author = "Material Design 3 example",
-    Icon = "lucide:house",
+    LogoTextureId = 17332630292,
     SearchIcon = "lucide:search",
     Theme = "Seraph Blue",
     TabMode = "Left", -- use "Top" for top tabs

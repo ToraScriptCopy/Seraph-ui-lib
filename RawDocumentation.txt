@@ -10,7 +10,7 @@ WINDOW
 local Window = Seraph:CreateWindow({
     Title = "Seraph",
     Author = "Project",
-    Icon = 17332630292,
+    LogoTextureId = 17332630292,
     Theme = "Seraph Dark",
     TabMode = "Left", -- Left or Top
     ToggleKey = Enum.KeyCode.RightShift,
@@ -20,8 +20,10 @@ local Window = Seraph:CreateWindow({
     Tag = {Text = "BETA", Side = "right"},
 })
 
+The default window logo is rendered through ImageLabel.Image with texture/image ID 17332630292. Asset ID 17332630310 is not used for the main logo. Override it with LogoTextureId or call Window:SetLogo(textureId) / Window:SetLogoTexture(textureId).
+
 WINDOW METHODS
-Tab, CreateTab, AddTab, Notify, Popup, SetTheme, AddTheme, SetTag, Toggle, SetVisible, Minimize, BindKey, Destroy, ConfigureProtection.
+Tab, CreateTab, AddTab, Notify, Popup, SetTheme, AddTheme, SetTag, SetLogo, SetLogoTexture, Toggle, SetVisible, Minimize, BindKey, Destroy, ConfigureProtection.
 
 The browser toolbar has a search field and a seraph:// route label. Search matches tab names, section titles, element titles, descriptions, and tags.
 Window:Search("slider")

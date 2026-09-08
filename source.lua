@@ -476,6 +476,10 @@ end
 local Seraph = {
     Name = "Seraph",
     Version = "1.0.0",
+    -- ImageLabel.Image must receive the texture/image ID. The asset ID is
+    -- kept only as a legacy reference and is never used for the default logo.
+    LogoTextureId = 17332630292,
+    LogoTexture = "rbxassetid://17332630292",
     LogoAsset = "rbxassetid://17332630292",
     LogoAssetId = 17332630310,
     Themes = {
@@ -2639,6 +2643,25 @@ end
 
 Window.AddTag = Window.SetTag
 
+function Window:SetLogo(textureId)
+    local source = textureId or Seraph.LogoTexture
+    local oldLogo = self.Logo
+    local position = oldLogo and oldLogo.Position or UDim2.fromOffset(72, 16)
+    local anchorPoint = oldLogo and oldLogo.AnchorPoint or Vector2.new(0, 0)
+    if oldLogo and oldLogo.Parent then
+        oldLogo:Destroy()
+    end
+
+    local logo = self:_icon(self.Header, source, 26, "WindowTopbarIcon")
+    logo.Position = position
+    logo.AnchorPoint = anchorPoint
+    self.Logo = logo
+    self.LogoSource = source
+    return logo
+end
+
+Window.SetLogoTexture = Window.SetLogo
+
 function Window:Notify(options)
     options = type(options) == "string" and {Content = options} or (options or {})
     local duration = tonumber(options.Duration) or 4
@@ -3063,8 +3086,11 @@ function Seraph:CreateWindow(options)
         window:_bind(traffic, "BackgroundColor3", dot.Color)
     end
 
-    local logo = window:_icon(header, options.Icon or Seraph.LogoAsset, 26, "WindowTopbarIcon")
+    local logoSource = options.LogoTextureId or options.LogoTexture or options.Icon or Seraph.LogoTexture
+    local logo = window:_icon(header, logoSource, 26, "WindowTopbarIcon")
     logo.Position = UDim2.fromOffset(72, 16)
+    window.Logo = logo
+    window.LogoSource = logoSource
     local title = window:_textLabel(header, window.Title, 15, "WindowTopbarTitle", {
         Position = UDim2.fromOffset(108, 9),
         Size = UDim2.new(0.48, -108, 0, 22),
