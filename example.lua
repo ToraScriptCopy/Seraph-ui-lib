@@ -1,5 +1,5 @@
 -- Seraph example
-local RAW_URL = "https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"
+local RAW_URL = "https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/refs/heads/main/source.lua"
 local Seraph = loadstring(game:HttpGet(RAW_URL))()
 
 -- Optional external icon runtime from the pinned Footagesus/Icons revision.

@@ -7,7 +7,7 @@ Seraph is a dependency-free Roblox/Luau UI library loaded from one raw `source.l
 ## Load
 
 ```lua
-local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"))()
+local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/refs/heads/main/source.lua"))()
 ```
 
 ## Create a window

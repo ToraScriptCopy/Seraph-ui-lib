@@ -4,7 +4,7 @@ PURPOSE
 Seraph is a dependency-free Roblox/Luau UI library loaded from one raw source.lua file. It provides a browser-like Material-inspired window, themes, side or top tabs, functional controls, music playback, notifications, dialogs, and local configuration files.
 
 LOAD
-local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"))()
+local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/refs/heads/main/source.lua"))()
 
 WINDOW
 local Window = Seraph:CreateWindow({

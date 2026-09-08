@@ -13,7 +13,7 @@ Seraph
 
 
 ```lua
-local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"))()
+local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/refs/heads/main/source.lua"))()
 
 local Window = Seraph:CreateWindow({
     Title = "My Seraph Window",
