@@ -10,9 +10,7 @@ Seraph
 - реально работающие контролы и конфиги;
 - понятный API, который можно использовать как через `Tab:Toggle(...)`, так и через явный `Section`.
 
-## Быстрый старт
 
-Опубликуйте `source.lua` в репозитории и подставьте его raw URL:
 
 ```lua
 local Seraph = loadstring(game:HttpGet("https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"))()
