@@ -37,7 +37,7 @@ Tab:Toggle({
 })
 ```
 
-В новой browser-компоновке под верхней панелью находится поисковая строка. Она ищет по вкладкам, секциям, названиям, описаниям и тегам элементов. Справа отображается маршрут `seraph://Название/Секция/Вкладка`.
+В новой browser-компоновке под верхней панелью находится адресная строка `https://seraph.local/...` с поиском. Она ищет по вкладкам, секциям, названиям, описаниям и тегам элементов.
 
 ```lua
 Window:Search("slider")
@@ -89,7 +89,7 @@ Section:Toggle({...})
 
 Поддерживаются:
 
-`Toggle`, `Checkbox`, `Button`, `Slider`, `Keybind`, `Dropdown`, `MultiDropdown`, `Colorpicker`, `Input`, `Popup`, `Notify`, `Divider`, `Space`, `Paragraph`, `Code`, `Music`, `Section`, `TabSection`, `Tag`.
+`Toggle`, `Checkbox`, `Button`, `Slider`, `Keybind`, `Dropdown`, `DropDownPlayersAuto`, `MultiDropdown`, `Colorpicker`, `Input`, `Popup`, `Notify`, `Divider`, `Space`, `Paragraph`, `Code`, `Music`, `Section`, `TabSection`, `Tag`.
 
 ### Toggle
 
@@ -122,6 +122,7 @@ local slider = Section:Slider({
 ```
 
 Поддерживаются поля `Min`/`Minimum`, `Max`/`Maximum`, `Step`/`Rounding`, `Default`/`Value`.
+`Format` может быть функцией форматирования значения, а `Suffix` добавляет суффикс к отображению.
 
 ### Dropdown и MultiDropdown
 
@@ -140,6 +141,25 @@ local multi = Section:MultiDropdown({
 ```
 
 `Options` является псевдонимом `Values`. Для `MultiDropdown` значение callback — массив выбранных значений.
+
+Открытый список можно обновить без пересоздания элемента:
+
+```lua
+dropdown:UpdateDropdown({"Personal", "Work", "Testing", "Guest"}, "Guest")
+-- aliases: dropdown:DropdownUpdate(...) и dropdown:Update(...)
+```
+
+Для списка игроков используется событийное обновление через `PlayerAdded`/`PlayerRemoving`:
+
+```lua
+local players = Section:DropDownPlayersAuto({
+    Title = "Player",
+    ValueType = "Name", -- Name, UserId или Player
+    IncludeLocalPlayer = false,
+    Callback = function(value) print(value) end,
+})
+players:RefreshPlayers()
+```
 
 ### Keybind
 
@@ -172,6 +192,21 @@ Section:Code({
     Code = "print('hello')",
     Editable = false,
 })
+```
+
+Colorpicker открывает HSV-палитру с выбором оттенка, насыщенности, яркости и hex-полем. Значение по-прежнему возвращается как `Color3`.
+
+### Динамические элементы и секции
+
+Элементы можно создавать и удалять во время работы. `Destroy` удаляет объект из UI, flags и поискового индекса; `Section:Clear()` очищает секцию, а `Window:Refresh()` пересчитывает layout и поиск.
+
+```lua
+local dynamic = Section:Label({Title = "Status", Content = "Loading..."})
+dynamic:Destroy()
+
+local collapsible = Tab:Section({Title = "Advanced", Collapsible = true})
+collapsible:Toggle({Title = "Runtime option"})
+collapsible:Toggle() -- collapse/expand with animation
 ```
 
 `Code` имеет кнопку Copy, если окружение предоставляет `setclipboard`.
@@ -216,6 +251,8 @@ music:Play()
 music:SetVolume(0.65)
 music:Next()
 music:MoveTrack(2, 1)
+music:AddTrack({Id = 1843529604, Name = "Track three"})
+music:RemoveTrack(2)
 ```
 
 Игровая громкость сохраняет исходные значения громкости найденных `Sound`-объектов и применяет к ним коэффициент. Новые звуки, созданные игрой позже, не добавляются автоматически до следующего запуска snapshot-логики.

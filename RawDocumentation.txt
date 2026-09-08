@@ -25,7 +25,7 @@ The default window logo is rendered through ImageLabel.Image with texture/image 
 WINDOW METHODS
 Tab, CreateTab, AddTab, Notify, Popup, SetTheme, AddTheme, SetTag, SetLogo, SetLogoTexture, Toggle, SetVisible, Minimize, BindKey, Destroy, ConfigureProtection.
 
-The browser toolbar has a search field and a seraph:// route label. Search matches tab names, section titles, element titles, descriptions, and tags.
+The browser toolbar has an address-style https://seraph.local/... search field. Search matches tab names, section titles, element titles, descriptions, and tags.
 Window:Search("slider")
 Window:SetSearchEnabled(false)
 
@@ -37,9 +37,11 @@ local Section = Tab:Section({Title = "Controls"})
 All element methods work on Tab and Section. Tab-level calls use an implicit default section.
 
 ELEMENTS
-Toggle, Checkbox, Button, Slider, Input, Dropdown, MultiDropdown, Keybind, Colorpicker, Code, Music, Paragraph, Divider, Space, Tag.
+Toggle, Checkbox, Button, Slider, Input, Dropdown, DropDownPlayersAuto, MultiDropdown, Keybind, Colorpicker, Code, Music, Paragraph, Divider, Space, Tag.
 
 Common fields: Title, Desc, Tag, Default, Value, Flag, Callback, LayoutOrder.
+
+Dropdown supports UpdateDropdown, DropdownUpdate and Update. DropDownPlayersAuto supports RefreshPlayers. Sections support Collapsible=true, Toggle(), SetCollapsed(value), Refresh(), Clear() and Destroy().
 
 Example:
 local toggle = Section:Toggle({

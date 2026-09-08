@@ -31,7 +31,7 @@ The default window logo is rendered through `ImageLabel.Image` with texture/imag
 
 Window methods: `Tab`, `CreateTab`, `AddTab`, `Notify`, `Popup`, `SetTheme`, `AddTheme`, `SetTag`, `SetLogo`, `SetLogoTexture`, `Toggle`, `SetVisible`, `Minimize`, `BindKey`, `Destroy`, `ConfigureProtection`.
 
-The browser toolbar includes a search field and a route label. Search is case-insensitive and matches tab names, section titles, element titles, descriptions, and tags.
+The browser toolbar includes an address-style `https://seraph.local/...` search field. Search is case-insensitive and matches tab names, section titles, element titles, descriptions, and tags.
 
 ```lua
 Window:Search("slider")
@@ -52,7 +52,7 @@ Every element can be called on `Tab` or `Section`. Tab-level calls use an implic
 
 Methods:
 
-`Toggle`, `Checkbox`, `Button`, `Slider`, `Input`, `Dropdown`, `MultiDropdown`, `Keybind`, `Colorpicker`, `Code`, `Music`, `Paragraph`, `Divider`, `Space`, `Tag`.
+`Toggle`, `Checkbox`, `Button`, `Slider`, `Input`, `Dropdown`, `DropDownPlayersAuto`, `MultiDropdown`, `Keybind`, `Colorpicker`, `Code`, `Music`, `Paragraph`, `Divider`, `Space`, `Tag`.
 
 Common fields: `Title`, `Desc`, `Tag`, `Default`, `Value`, `Flag`, `Callback`, `LayoutOrder`.
 
@@ -82,7 +82,9 @@ Section:Colorpicker({Title = "Color", Default = Color3.fromRGB(59, 130, 246)})
 Section:Code({Title = "Code", Code = "print('ok')", Editable = false})
 ```
 
-Element methods: `Get`, `Set`, `Destroy`. Keybind supports `OnPress`. Button supports `Activate`. Music supports `Play`, `Pause`, `Stop`, `Next`, `Previous`, `SetVolume`, `MoveTrack`.
+Element methods: `Get`, `Set`, `Destroy`. Dropdown supports `UpdateDropdown`, `DropdownUpdate`, `Update`. Player dropdown supports `RefreshPlayers`. Keybind supports `OnPress`. Button supports `Activate`. Music supports `Play`, `Pause`, `Stop`, `Next`, `Previous`, `SetVolume`, `MoveTrack`, `AddTrack`, `RemoveTrack`.
+
+Sections support `Collapsible = true`, `Section:Toggle()`, `Section:SetCollapsed(value)`, `Section:Refresh()`, `Section:Clear()` and `Section:Destroy()`.
 
 ## Music
 

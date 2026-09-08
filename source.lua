@@ -759,9 +759,16 @@ function Window:_newElement(kind, row, value, callback)
     end
 
     function element:Destroy()
+        if self._destroyed then
+            return
+        end
+        self._destroyed = true
         disconnectAll(self._connections)
+        self.Window:_unregisterElement(self)
         if self.Instance then
-            self.Instance:Destroy()
+            pcall(function()
+                self.Instance:Destroy()
+            end)
         end
     end
 
@@ -773,6 +780,32 @@ function Window:_newElement(kind, row, value, callback)
     end
 
     return element
+end
+
+function Window:_unregisterElement(element)
+    if not element then
+        return
+    end
+    if element.Flag and self._flags[element.Flag] == element then
+        self._flags[element.Flag] = nil
+    end
+    for _, list in ipairs({self._elements, self._searchEntries}) do
+        for index = #list, 1, -1 do
+            if list[index] == element then
+                table.remove(list, index)
+            end
+        end
+    end
+    if element.Section and element.Section.Elements then
+        for index = #element.Section.Elements, 1, -1 do
+            if element.Section.Elements[index] == element then
+                table.remove(element.Section.Elements, index)
+            end
+        end
+    end
+    if self._searchQuery ~= nil then
+        self:_applySearch(self._searchQuery)
+    end
 end
 
 function Window:_registerElement(element, options)
@@ -798,6 +831,16 @@ function Window:_registerElement(element, options)
     end
     self._elements[#self._elements + 1] = element
     self._searchEntries[#self._searchEntries + 1] = element
+    if element.Section and element.Section.Refresh then
+        task.defer(function()
+            if element.Section and element.Section.Instance and element.Section.Instance.Parent then
+                element.Section:Refresh()
+            end
+        end)
+    end
+    if self._searchQuery ~= nil then
+        self:_applySearch(self._searchQuery)
+    end
     return element
 end
 
@@ -822,11 +865,12 @@ function Window:_updateBreadcrumb(tab, section)
     if tab and tab.Title then
         pieces[#pieces + 1] = tab.Title
     end
-    self.Breadcrumb.Text = "seraph://" .. table.concat(pieces, "/")
+    self.Breadcrumb.Text = "https://seraph.local/" .. table.concat(pieces, "/")
 end
 
 function Window:_applySearch(query)
     query = string.lower(trim(query or ""))
+    self._searchQuery = query
     local tabNameMatches = {}
     local matchedTabs = {}
     for _, tab in ipairs(self._tabs) do
@@ -883,7 +927,6 @@ function Window:_row(section, options, height)
         LayoutOrder = options and options.LayoutOrder or 0,
     }, section.Content)
     addCorner(row, 10)
-    addStroke(row, self:_color("Outline"), 0.82, 1)
     self:_bind(row, "BackgroundColor3", "ElementBackground")
     row.MouseEnter:Connect(function()
         tween(row, {BackgroundColor3 = self:_color("Hover")}, 0.12)
@@ -926,25 +969,40 @@ function Window:_row(section, options, height)
         Size = UDim2.new(1, 0, 0, 20),
     }, textHolder)
     local titleLabel = self:_textLabel(titleLine, options and options.Title or "Element", 14, "ElementTitle", {
-        Size = UDim2.new(1, -80, 1, 0),
+        Size = UDim2.new(1, -10, 1, 0),
         Font = Enum.Font.GothamMedium,
         TextTruncate = Enum.TextTruncate.AtEnd,
     })
 
     if options and options.Tag then
-        local tagText = type(options.Tag) == "table" and options.Tag.Text or options.Tag
+        local tagOptions = type(options.Tag) == "table" and options.Tag or {Text = options.Tag}
+        local tagText = tagOptions.Text or tagOptions.Title or ""
+        local tagWidth = clamp(#tostring(tagText) * 7 + 18, 44, 96)
+        local side = string.lower(tostring(tagOptions.Side or "right"))
+        if side == "left" then
+            titleLabel.Position = UDim2.fromOffset(tagWidth + 8, 0)
+            titleLabel.Size = UDim2.new(1, -tagWidth - 18, 1, 0)
+        elseif side == "center" then
+            titleLabel.Size = UDim2.new(1, -tagWidth - 18, 1, 0)
+        else
+            titleLabel.Size = UDim2.new(1, -tagWidth - 10, 1, 0)
+        end
         local tagLabel = self:_textLabel(titleLine, tostring(tagText), 10, "Accent", {
-            AnchorPoint = Vector2.new(1, 0.5),
-            Position = UDim2.new(1, 0, 0.5, 0),
-            Size = UDim2.fromOffset(70, 18),
+            AnchorPoint = side == "left" and Vector2.new(0, 0.5) or Vector2.new(1, 0.5),
+            Position = side == "left" and UDim2.fromOffset(0, 10) or (side == "center" and UDim2.new(0.5, 0, 0.5, 0) or UDim2.new(1, 0, 0.5, 0)),
+            Size = UDim2.fromOffset(tagWidth, 18),
             TextXAlignment = Enum.TextXAlignment.Center,
-            BackgroundColor3 = self:_color("Accent"),
-            BackgroundTransparency = 0.1,
-            TextColor3 = self:_color("Text"),
+            BackgroundColor3 = color(tagOptions.Color or tagOptions.BackgroundColor, self:_color("Accent")),
+            BackgroundTransparency = tonumber(tagOptions.Transparency) or 0,
+            TextColor3 = color(tagOptions.TextColor, self:_color("Text")),
         })
         addCorner(tagLabel, 5)
-        self:_bind(tagLabel, "BackgroundColor3", "Accent")
-        self:_bind(tagLabel, "TextColor3", "Text")
+        if not tagOptions.Color and not tagOptions.BackgroundColor then
+            self:_bind(tagLabel, "BackgroundColor3", "Accent")
+        end
+        if not tagOptions.TextColor then
+            self:_bind(tagLabel, "TextColor3", "Text")
+        end
     end
 
     local description = options and (options.Desc or options.Description)
@@ -1224,6 +1282,9 @@ function Tab:Section(options)
         Collapsible = options.Collapsible == true,
     }, Section)
     if sectionHeader then
+        if section.Collapsible then
+            sectionHeader.Text = "▾ " .. section.Title
+        end
         sectionHeader.MouseEnter:Connect(function()
             self.Window:_setActiveSection(section)
         end)
@@ -1258,10 +1319,87 @@ function Section:SetCollapsed(collapsed)
     if not self.Collapsible then
         return self
     end
-    self.Collapsed = collapsed == true
-    self.Content.Visible = not self.Collapsed
+    local nextCollapsed = collapsed == true
+    if self.Collapsed == nextCollapsed then
+        return self
+    end
+    local content = self.Content
+    local expandedHeight = math.max(content.AbsoluteSize.Y, self._expandedHeight or 0)
+    if expandedHeight <= 0 then
+        expandedHeight = 1
+    end
+    self.Collapsed = nextCollapsed
+    content.Visible = true
+    content.AutomaticSize = Enum.AutomaticSize.None
+    if nextCollapsed then
+        self._expandedHeight = expandedHeight
+        tween(content, {Size = UDim2.new(1, 0, 0, 0)}, 0.24, Enum.EasingStyle.Exponential)
+    else
+        local targetHeight = self._expandedHeight or expandedHeight
+        content.Size = UDim2.new(1, 0, 0, 0)
+        tween(content, {Size = UDim2.new(1, 0, 0, targetHeight)}, 0.28, Enum.EasingStyle.Exponential)
+        task.delay(0.3, function()
+            if content.Parent and not self.Collapsed then
+                content.AutomaticSize = Enum.AutomaticSize.Y
+            end
+        end)
+    end
     if self.Header then
         self.Header.Text = (self.Collapsed and "▸ " or "▾ ") .. self.Title
+    end
+    return self
+end
+
+function Section:Toggle()
+    return self:SetCollapsed(not self.Collapsed)
+end
+
+function Section:Refresh()
+    self.Content.AutomaticSize = Enum.AutomaticSize.Y
+    self._expandedHeight = math.max(self.Content.AbsoluteSize.Y, self._expandedHeight or 0)
+    if self.Collapsed then
+        self.Content.AutomaticSize = Enum.AutomaticSize.None
+        self.Content.Size = UDim2.new(1, 0, 0, 0)
+    end
+    return self
+end
+
+function Section:Clear()
+    local elements = {}
+    for index, element in ipairs(self.Elements) do
+        elements[index] = element
+    end
+    for _, element in ipairs(elements) do
+        if type(element) == "table" and element.Destroy then
+            element:Destroy()
+        elseif typeof(element) == "Instance" and element.Parent then
+            element:Destroy()
+        end
+    end
+    for _, child in ipairs(self.Content:GetChildren()) do
+        if not child:IsA("UIListLayout") and not child:IsA("UIPadding") then
+            child:Destroy()
+        end
+    end
+    self.Elements = {}
+    self.Window:_applySearch(self.Window._searchQuery or "")
+    return self
+end
+
+function Section:Destroy()
+    self:Clear()
+    for index = #self.Tab.Sections, 1, -1 do
+        if self.Tab.Sections[index] == self then
+            table.remove(self.Tab.Sections, index)
+        end
+    end
+    for index = #self.Window._sections, 1, -1 do
+        if self.Window._sections[index] == self then
+            table.remove(self.Window._sections, index)
+        end
+    end
+    if self.Instance and self.Instance.Parent then
+        self.Instance:Destroy()
     end
     return self
 end
@@ -1290,7 +1428,6 @@ function Section:Toggle(options)
     track.AnchorPoint = Vector2.new(1, 0.5)
     track.Position = UDim2.new(1, 0, 0.5, 0)
     addCorner(track, 12)
-    self.Window:_bind(track, "BackgroundColor3", "Toggle")
     local knob = create("Frame", {
         AnchorPoint = Vector2.new(0, 0.5),
         BackgroundColor3 = self.Window:_color("ToggleBar"),
@@ -1317,10 +1454,15 @@ function Section:Toggle(options)
             safeCall(selfElement.Callback, value)
         end
     end
-    connectInput(track, function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            element:Set(not element.Value)
-        end
+    local toggleConnection = track.Activated:Connect(function()
+        element:Set(not element.Value)
+    end)
+    element._connections[#element._connections + 1] = toggleConnection
+    track.MouseEnter:Connect(function()
+        tween(track, {Size = UDim2.fromOffset(50, 26)}, 0.12, Enum.EasingStyle.Quint)
+    end)
+    track.MouseLeave:Connect(function()
+        tween(track, {Size = UDim2.fromOffset(46, 24)}, 0.12, Enum.EasingStyle.Quint)
     end)
     element:_setValue(current, true)
     return self:_finish(element, options)
@@ -1402,18 +1544,21 @@ function Section:Slider(options)
     options = options or {}
     local minimum = tonumber(options.Min or options.Minimum) or 0
     local maximum = tonumber(options.Max or options.Maximum) or 100
-    local increment = tonumber(options.Rounding or options.Step) or 1
+    local increment = tonumber(options.Rounding or options.Step or options.Increment) or 1
+    if increment <= 0 then
+        increment = 1
+    end
     local initial = tonumber(options.Default or options.Value)
     if initial == nil then
         initial = minimum
     end
     initial = clamp(initial, minimum, maximum)
-    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 72)
-    control.Size = UDim2.fromOffset(145, 54)
+    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 86)
+    control.Size = UDim2.fromOffset(176, 68)
     local valueLabel = self.Window:_textLabel(control, "", 11, "ElementDesc", {
         AnchorPoint = Vector2.new(1, 0),
         Position = UDim2.new(1, 0, 0, 0),
-        Size = UDim2.fromOffset(60, 18),
+        Size = UDim2.fromOffset(82, 18),
         TextXAlignment = Enum.TextXAlignment.Right,
     })
     local bar = create("TextButton", {
@@ -1421,10 +1566,10 @@ function Section:Slider(options)
         BackgroundColor3 = self.Window:_color("TabBackground"),
         BorderSizePixel = 0,
         Position = UDim2.new(0, 0, 0, 29),
-        Size = UDim2.new(1, 0, 0, 6),
+        Size = UDim2.new(1, 0, 0, 10),
         Text = "",
     }, control)
-    addCorner(bar, 3)
+    addCorner(bar, 5)
     self.Window:_bind(bar, "BackgroundColor3", "TabBackground")
     local fill = create("Frame", {
         BackgroundColor3 = self.Window:_color("Slider"),
@@ -1433,25 +1578,49 @@ function Section:Slider(options)
     }, bar)
     addCorner(fill, 3)
     self.Window:_bind(fill, "BackgroundColor3", "Slider")
-    local thumb = create("Frame", {
+    local thumb = create("TextButton", {
+        AutoButtonColor = false,
         AnchorPoint = Vector2.new(0.5, 0.5),
         BackgroundColor3 = self.Window:_color("SliderThumb"),
         BorderSizePixel = 0,
-        Size = UDim2.fromOffset(16, 16),
+        Position = UDim2.new(0, 0, 0.5, 0),
+        Size = UDim2.fromOffset(22, 22),
+        Text = "",
     }, bar)
-    addCorner(thumb, 8)
+    addCorner(thumb, 11)
+    addStroke(thumb, self.Window:_color("Slider"), 0.2, 1)
     self.Window:_bind(thumb, "BackgroundColor3", "SliderThumb")
+    local minLabel = self.Window:_textLabel(control, tostring(minimum), 10, "ElementDesc", {
+        Position = UDim2.fromOffset(0, 46),
+        Size = UDim2.fromOffset(70, 18),
+    })
+    local maxLabel = self.Window:_textLabel(control, tostring(maximum), 10, "ElementDesc", {
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, 0, 0, 46),
+        Size = UDim2.fromOffset(70, 18),
+        TextXAlignment = Enum.TextXAlignment.Right,
+    })
     local element = self.Window:_newElement("Slider", row, initial, options.Callback)
+    element.Control = bar
     local function setFromPercent(percent, silent)
         percent = clamp(percent, 0, 1)
         local rawValue = minimum + (maximum - minimum) * percent
-        local nextValue = round(rawValue / increment, 0) * increment
+        local nextValue = minimum + round((rawValue - minimum) / increment, 0) * increment
         nextValue = clamp(nextValue, minimum, maximum)
         local normalized = (nextValue - minimum) / math.max(0.0001, maximum - minimum)
         element.Value = nextValue
         fill.Size = UDim2.new(normalized, 0, 1, 0)
         thumb.Position = UDim2.new(normalized, 0, 0.5, 0)
-        valueLabel.Text = tostring(nextValue)
+        local formatted = tostring(nextValue)
+        if type(options.Format) == "function" then
+            local ok, result = pcall(options.Format, nextValue)
+            if ok and result ~= nil then
+                formatted = tostring(result)
+            end
+        elseif options.Suffix then
+            formatted = formatted .. tostring(options.Suffix)
+        end
+        valueLabel.Text = formatted
         if not silent then
             safeCall(element.Callback, nextValue)
         end
@@ -1466,12 +1635,14 @@ function Section:Slider(options)
         local x = input.Position.X - bar.AbsolutePosition.X
         setFromPercent(x / math.max(1, bar.AbsoluteSize.X))
     end
-    bar.InputBegan:Connect(function(input)
+    local function beginDrag(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             update(input)
         end
-    end)
+    end
+    bar.InputBegan:Connect(beginDrag)
+    thumb.InputBegan:Connect(beginDrag)
     local sliderChangedConnection = UserInputService.InputChanged:Connect(function(input)
         if dragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
             update(input)
@@ -1484,6 +1655,12 @@ function Section:Slider(options)
     end)
     element._connections[#element._connections + 1] = sliderChangedConnection
     element._connections[#element._connections + 1] = sliderEndedConnection
+    thumb.MouseEnter:Connect(function()
+        tween(thumb, {Size = UDim2.fromOffset(26, 26)}, 0.12, Enum.EasingStyle.Back)
+    end)
+    thumb.MouseLeave:Connect(function()
+        tween(thumb, {Size = UDim2.fromOffset(22, 22)}, 0.12, Enum.EasingStyle.Quint)
+    end)
     element:_setValue(initial, true)
     element.Min = minimum
     element.Max = maximum
@@ -1533,7 +1710,30 @@ end
 function Section:Dropdown(options)
     options = options or {}
     local values = options.Values or options.Options or {}
-    local initial = options.Default or options.Value or values[1]
+    local function copyValues(source)
+        local result = {}
+        for index, value in ipairs(source or {}) do
+            result[index] = value
+        end
+        return result
+    end
+    values = copyValues(values)
+    local function displayValue(value)
+        if type(value) == "table" then
+            return tostring(value.Name or value.Title or value.Text or value.Value or "Select")
+        end
+        if typeof(value) == "Instance" then
+            return value.Name
+        end
+        return tostring(value or "Select")
+    end
+    local initial = options.Default
+    if initial == nil then
+        initial = options.Value
+    end
+    if initial == nil then
+        initial = values[1]
+    end
     local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 56)
     local button = create("TextButton", {
         AutoButtonColor = false,
@@ -1541,7 +1741,7 @@ function Section:Dropdown(options)
         BackgroundTransparency = 0.05,
         BorderSizePixel = 0,
         Size = UDim2.fromOffset(145, 34),
-        Text = tostring(initial or "Select"),
+        Text = displayValue(initial),
         TextColor3 = self.Window:_color("Text"),
         TextSize = 12,
         Font = Enum.Font.Gotham,
@@ -1562,33 +1762,236 @@ function Section:Dropdown(options)
     local element = self.Window:_newElement("Dropdown", row, initial, options.Callback)
     element.Values = values
     element.Control = button
+    element.DisplayValue = displayValue
     element._setValue = function(selfElement, value, silent)
         selfElement.Value = value
-        button.Text = tostring(value or "Select")
+        button.Text = displayValue(value)
         if not silent then
             safeCall(selfElement.Callback, value)
         end
     end
-    button.Activated:Connect(function()
-        local popup = self.Window:_popupFrame(220, math.min(300, 46 + math.max(1, #values) * 34))
+    local function openDropdown()
+        local rowHeight = 34
+        local searchHeight = 0
+        if options.Searchable == true or (#values > 8 and options.Searchable ~= false) then
+            searchHeight = 38
+        end
+        local popupHeight = math.min(330, 18 + searchHeight + math.max(1, #values) * rowHeight + 10)
+        local popup = self.Window:_popupFrame(248, popupHeight)
         self.Window:_positionPopup(popup, button)
         addPadding(popup, 8, 8, 8, 8)
-        local list = addList(popup, Enum.FillDirection.Vertical, 5)
-        for index, value in ipairs(values) do
-            local optionButton = self.Window:_makePopupButton(popup, tostring(value), index)
-            optionButton.Activated:Connect(function()
-                element:Set(value)
-                self.Window:_closePopups()
+        local searchBox
+        if searchHeight > 0 then
+            searchBox = create("TextBox", {
+                BackgroundColor3 = self.Window:_color("ElementBackground"),
+                BackgroundTransparency = 0,
+                BorderSizePixel = 0,
+                ClearTextOnFocus = false,
+                PlaceholderText = "Search options",
+                PlaceholderColor3 = self.Window:_color("Placeholder"),
+                Text = "",
+                TextColor3 = self.Window:_color("PopupContent"),
+                TextSize = 11,
+                Font = Enum.Font.Gotham,
+                Position = UDim2.fromOffset(8, 8),
+                Size = UDim2.new(1, -16, 0, 30),
+                ZIndex = 53,
+            }, popup)
+            addCorner(searchBox, 7)
+            addPadding(searchBox, 10, 8, 0, 0)
+            self.Window:_bind(searchBox, "BackgroundColor3", "ElementBackground")
+            self.Window:_bind(searchBox, "PlaceholderColor3", "Placeholder")
+            self.Window:_bind(searchBox, "TextColor3", "PopupContent")
+        end
+        local list = create("ScrollingFrame", {
+            Active = true,
+            BackgroundTransparency = 1,
+            BorderSizePixel = 0,
+            CanvasSize = UDim2.new(0, 0, 0, 0),
+            Position = UDim2.fromOffset(8, 10 + searchHeight),
+            ScrollBarImageColor3 = self.Window:_color("Accent"),
+            ScrollBarThickness = 3,
+            Size = UDim2.new(1, -16, 1, -18 - searchHeight),
+            ZIndex = 52,
+        }, popup)
+        local listLayout = addList(list, Enum.FillDirection.Vertical, 5)
+        listLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            list.CanvasSize = UDim2.fromOffset(0, listLayout.AbsoluteContentSize.Y + 6)
+        end)
+        local function render(filter)
+            for _, child in ipairs(list:GetChildren()) do
+                if child:IsA("GuiButton") then
+                    child:Destroy()
+                end
+            end
+            filter = string.lower(trim(filter or ""))
+            local shown = 0
+            for index, value in ipairs(values) do
+                local text = displayValue(value)
+                if filter == "" or string.find(string.lower(text), filter, 1, true) then
+                    shown = shown + 1
+                    local optionButton = self.Window:_makePopupButton(list, text, index)
+                    optionButton.Size = UDim2.new(1, -6, 0, rowHeight)
+                    local selectedMark = self.Window:_textLabel(optionButton, "", 12, "Accent", {
+                        AnchorPoint = Vector2.new(1, 0.5),
+                        Position = UDim2.new(1, -8, 0.5, 0),
+                        Size = UDim2.fromOffset(18, 18),
+                        TextXAlignment = Enum.TextXAlignment.Center,
+                        ZIndex = 54,
+                    })
+                    selectedMark.Text = element.Value == value and "✓" or ""
+                    optionButton.Activated:Connect(function()
+                        element:Set(value)
+                        self.Window:_closePopups()
+                    end)
+                end
+            end
+            if shown == 0 then
+                local empty = self.Window:_textLabel(list, "No options", 11, "PopupContent", {
+                    Size = UDim2.new(1, -6, 0, rowHeight),
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                })
+                empty.LayoutOrder = 1
+            end
+        end
+        if searchBox then
+            searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                render(searchBox.Text)
             end)
         end
+        render("")
+        element._openPopup = popup
+        return popup
+    end
+    element.Open = openDropdown
+    element.UpdateDropdown = function(selfElement, nextValues, nextValue, silent)
+        if type(nextValues) == "table" and (nextValues.Values or nextValues.Options) then
+            nextValue = nextValues.Default or nextValues.Value or nextValue
+            nextValues = nextValues.Values or nextValues.Options
+        end
+        values = copyValues(nextValues or {})
+        selfElement.Values = values
+        if nextValue == nil then
+            nextValue = values[1]
+        end
+        selfElement:Set(nextValue, silent == true)
+        if selfElement._openPopup then
+            self.Window:_closePopups()
+        end
+        return selfElement
+    end
+    element.DropdownUpdate = element.UpdateDropdown
+    element.Update = element.UpdateDropdown
+    local dropdownConnection = button.Activated:Connect(function()
+        openDropdown()
+    end)
+    element._connections[#element._connections + 1] = dropdownConnection
+    button.MouseEnter:Connect(function()
+        tween(button, {BackgroundColor3 = self.Window:_color("Hover")}, 0.12)
+        tween(arrow, {Rotation = 8}, 0.12, Enum.EasingStyle.Quint)
+    end)
+    button.MouseLeave:Connect(function()
+        tween(button, {BackgroundColor3 = self.Window:_color("TabBackground")}, 0.16)
+        tween(arrow, {Rotation = 0}, 0.12, Enum.EasingStyle.Quint)
     end)
     element:_setValue(initial, true)
     return self:_finish(element, options)
 end
 
+function Section:DropDownPlayersAuto(options)
+    options = options or {}
+    local function toValue(player)
+        if type(options.Format) == "function" then
+            local ok, result = pcall(options.Format, player)
+            if ok and result ~= nil then
+                return result
+            end
+        end
+        local valueType = string.lower(tostring(options.ValueType or "Name"))
+        if valueType == "userid" or valueType == "user_id" then
+            return player.UserId
+        end
+        if valueType == "player" or valueType == "instance" then
+            return player
+        end
+        return player.Name
+    end
+    local function getValues()
+        local result = {}
+        for _, player in ipairs(Players:GetPlayers()) do
+            if options.IncludeLocalPlayer ~= false or player ~= LocalPlayer then
+                result[#result + 1] = toValue(player)
+            end
+        end
+        table.sort(result, function(left, right)
+            return tostring(left) < tostring(right)
+        end)
+        return result
+    end
+    local dropdownOptions = mergeTables(options, {
+        Values = getValues(),
+        Searchable = options.Searchable ~= false,
+    })
+    local element = self:Dropdown(dropdownOptions)
+    element.AutoPlayers = true
+    element.RefreshPlayers = function(selfElement, silent)
+        local nextValues = getValues()
+        local current = selfElement.Value
+        local nextValue = current
+        local exists = false
+        for _, value in ipairs(nextValues) do
+            if value == current then
+                exists = true
+                break
+            end
+        end
+        if not exists then
+            nextValue = nextValues[1]
+        end
+        selfElement:UpdateDropdown(nextValues, nextValue, silent ~= false)
+        return selfElement
+    end
+    element.GetPlayer = function(selfElement)
+        local value = selfElement.Value
+        if options.ValueType and string.lower(tostring(options.ValueType)) == "player" then
+            return value
+        end
+        if value == nil then
+            return nil
+        end
+        if options.ValueType and string.lower(tostring(options.ValueType)) == "userid" then
+            return Players:GetPlayerByUserId(tonumber(value) or -1)
+        end
+        return Players:FindFirstChild(tostring(value))
+    end
+    element._connections[#element._connections + 1] = Players.PlayerAdded:Connect(function()
+        element:RefreshPlayers(true)
+    end)
+    element._connections[#element._connections + 1] = Players.PlayerRemoving:Connect(function()
+        element:RefreshPlayers(true)
+    end)
+    return element
+end
+
+Section.DropdownPlayersAuto = Section.DropDownPlayersAuto
+
 function Section:MultiDropdown(options)
     options = options or {}
     local values = options.Values or options.Options or {}
+    local normalizedValues = {}
+    for index, value in ipairs(values) do
+        normalizedValues[index] = value
+    end
+    values = normalizedValues
+    local function displayValue(value)
+        if type(value) == "table" then
+            return tostring(value.Name or value.Title or value.Text or value.Value or "Select")
+        end
+        if typeof(value) == "Instance" then
+            return value.Name
+        end
+        return tostring(value or "Select")
+    end
     local initial = options.Default or options.Value or {}
     local selected = {}
     for _, value in ipairs(initial) do
@@ -1627,7 +2030,13 @@ function Section:MultiDropdown(options)
     end
     local function updateText()
         local current = selectedArray()
-        button.Text = #current == 0 and "Select" or table.concat(current, ", ")
+        if #current == 0 then
+            button.Text = "Select"
+        elseif #current == 1 then
+            button.Text = displayValue(current[1])
+        else
+            button.Text = tostring(#current) .. " selected"
+        end
         element.Value = current
     end
     element._setValue = function(selfElement, value, silent)
@@ -1647,11 +2056,21 @@ function Section:MultiDropdown(options)
         local list = addList(popup, Enum.FillDirection.Vertical, 5)
         for index, value in ipairs(values) do
             local optionButton = self.Window:_makePopupButton(popup, "", index)
-            local checkLabel = self.Window:_textLabel(optionButton, "", 12, "PopupContent", {
-                Size = UDim2.new(1, 0, 1, 0),
+            local optionLabel = self.Window:_textLabel(optionButton, displayValue(value), 12, "PopupContent", {
+                Position = UDim2.fromOffset(10, 0),
+                Size = UDim2.new(1, -42, 1, 0),
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                ZIndex = 54,
+            })
+            local checkLabel = self.Window:_textLabel(optionButton, "", 14, "Accent", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -8, 0.5, 0),
+                Size = UDim2.fromOffset(18, 18),
+                TextXAlignment = Enum.TextXAlignment.Center,
+                ZIndex = 54,
             })
             local function refresh()
-                checkLabel.Text = (selected[value] and "[x] " or "[ ] ") .. tostring(value)
+                checkLabel.Text = selected[value] and "✓" or ""
             end
             refresh()
             optionButton.Activated:Connect(function()
@@ -1667,6 +2086,28 @@ function Section:MultiDropdown(options)
             self.Window:_closePopups()
         end)
     end)
+    element.UpdateDropdown = function(selfElement, nextValues, nextValue, silent)
+        if type(nextValues) == "table" and (nextValues.Values or nextValues.Options) then
+            nextValue = nextValues.Default or nextValues.Value or nextValue
+            nextValues = nextValues.Values or nextValues.Options
+        end
+        values = {}
+        for index, value in ipairs(nextValues or {}) do
+            values[index] = value
+        end
+        selfElement.Values = values
+        selected = {}
+        for _, value in ipairs(nextValue or {}) do
+            selected[value] = true
+        end
+        updateText()
+        if not silent then
+            safeCall(selfElement.Callback, selfElement.Value)
+        end
+        return selfElement
+    end
+    element.DropdownUpdate = element.UpdateDropdown
+    element.Update = element.UpdateDropdown
     element:_setValue(initial, true)
     return self:_finish(element, options)
 end
@@ -1743,7 +2184,6 @@ function Section:Colorpicker(options)
     swatch.AnchorPoint = Vector2.new(1, 0.5)
     swatch.Position = UDim2.new(1, 0, 0.5, 0)
     addCorner(swatch, 8)
-    addStroke(swatch, self:_color("Outline"), 0.4, 1)
     local element = self.Window:_newElement("Colorpicker", row, initial, options.Callback)
     element.Control = swatch
     element._setValue = function(selfElement, value, silent)
@@ -1755,47 +2195,193 @@ function Section:Colorpicker(options)
         end
     end
     swatch.Activated:Connect(function()
-        local popup = self.Window:_popupFrame(250, 155)
+        local hue, saturation, value = Color3.toHSV(element.Value)
+        local popup = self.Window:_popupFrame(286, 280)
         self.Window:_positionPopup(popup, swatch)
-        addPadding(popup, 12, 12, 12, 12)
-        local layout = addList(popup, Enum.FillDirection.Vertical, 7)
-        local inputs = {}
-        local function channel(value)
-            return math.floor(clamp(value, 0, 1) * 255 + 0.5)
+        local title = self.Window:_textLabel(popup, "Color", 12, "PopupTitle", {
+            Position = UDim2.fromOffset(14, 10),
+            Size = UDim2.new(1, -28, 0, 18),
+            Font = Enum.Font.GothamMedium,
+            ZIndex = 53,
+        })
+        local map = create("TextButton", {
+            AutoButtonColor = false,
+            BackgroundColor3 = Color3.fromHSV(hue, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(14, 34),
+            Size = UDim2.fromOffset(194, 142),
+            Text = "",
+            ZIndex = 52,
+        }, popup)
+        addCorner(map, 8)
+        local whiteOverlay = create("Frame", {
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = 53,
+        }, map)
+        create("UIGradient", {
+            Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 0),
+                NumberSequenceKeypoint.new(1, 1),
+            }),
+        }, whiteOverlay)
+        local blackOverlay = create("Frame", {
+            BackgroundColor3 = Color3.new(0, 0, 0),
+            BackgroundTransparency = 0,
+            BorderSizePixel = 0,
+            Size = UDim2.fromScale(1, 1),
+            ZIndex = 54,
+        }, map)
+        create("UIGradient", {
+            Rotation = 90,
+            Transparency = NumberSequence.new({
+                NumberSequenceKeypoint.new(0, 1),
+                NumberSequenceKeypoint.new(1, 0),
+            }),
+        }, blackOverlay)
+        local mapPoint = create("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.new(saturation, 0, 1 - value, 0),
+            Size = UDim2.fromOffset(12, 12),
+            ZIndex = 55,
+        }, map)
+        addCorner(mapPoint, 6)
+        addStroke(mapPoint, Color3.new(0, 0, 0), 0.15, 2)
+
+        local hueBar = create("TextButton", {
+            AutoButtonColor = false,
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(218, 34),
+            Size = UDim2.fromOffset(18, 142),
+            Text = "",
+            ZIndex = 52,
+        }, popup)
+        addCorner(hueBar, 9)
+        create("UIGradient", {
+            Rotation = 90,
+            Color = ColorSequence.new({
+                ColorSequenceKeypoint.new(0, Color3.fromRGB(255, 0, 0)),
+                ColorSequenceKeypoint.new(0.17, Color3.fromRGB(255, 255, 0)),
+                ColorSequenceKeypoint.new(0.34, Color3.fromRGB(0, 255, 0)),
+                ColorSequenceKeypoint.new(0.51, Color3.fromRGB(0, 255, 255)),
+                ColorSequenceKeypoint.new(0.68, Color3.fromRGB(0, 0, 255)),
+                ColorSequenceKeypoint.new(0.85, Color3.fromRGB(255, 0, 255)),
+                ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 0, 0)),
+            }),
+        }, hueBar)
+        local huePoint = create("Frame", {
+            AnchorPoint = Vector2.new(0.5, 0.5),
+            BackgroundColor3 = Color3.new(1, 1, 1),
+            BorderSizePixel = 0,
+            Position = UDim2.new(0.5, 0, hue, 0),
+            Size = UDim2.fromOffset(26, 4),
+            ZIndex = 55,
+        }, hueBar)
+        addCorner(huePoint, 2)
+        local preview = create("Frame", {
+            BackgroundColor3 = element.Value,
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(250, 34),
+            Size = UDim2.fromOffset(22, 142),
+            ZIndex = 52,
+        }, popup)
+        addCorner(preview, 8)
+
+        local hexValue = self.Window:_textLabel(popup, "", 11, "PopupContent", {
+            Position = UDim2.fromOffset(14, 188),
+            Size = UDim2.fromOffset(92, 18),
+            ZIndex = 53,
+        })
+        local function toHex(colorValue)
+            return string.format("#%02X%02X%02X", math.floor(colorValue.R * 255 + 0.5), math.floor(colorValue.G * 255 + 0.5), math.floor(colorValue.B * 255 + 0.5))
         end
-        local channels = {
-            {Name = "Red", Value = channel(initial.R)},
-            {Name = "Green", Value = channel(initial.G)},
-            {Name = "Blue", Value = channel(initial.B)},
-        }
-        for index, data in ipairs(channels) do
-            local input = create("TextBox", {
-                BackgroundColor3 = self.Window:_color("TabBackground"),
-                BorderSizePixel = 0,
-                ClearTextOnFocus = false,
-                PlaceholderText = data.Name,
-                Text = tostring(data.Value),
-                TextColor3 = self.Window:_color("PopupContent"),
-                TextSize = 12,
-                Font = Enum.Font.Gotham,
-                Size = UDim2.new(1, 0, 0, 26),
-                LayoutOrder = index,
-            }, popup)
-            addCorner(input, 6)
-            addPadding(input, 8, 8, 0, 0)
-            self.Window:_bind(input, "BackgroundColor3", "TabBackground")
-            self.Window:_bind(input, "TextColor3", "PopupContent")
-            inputs[index] = input
+        local function syncColor(silent)
+            local nextColor = Color3.fromHSV(hue, saturation, value)
+            element:Set(nextColor, silent)
+            map.BackgroundColor3 = Color3.fromHSV(hue, 1, 1)
+            mapPoint.Position = UDim2.new(saturation, 0, 1 - value, 0)
+            huePoint.Position = UDim2.new(0.5, 0, hue, 0)
+            preview.BackgroundColor3 = nextColor
+            hexValue.Text = toHex(nextColor)
         end
-        local apply = self.Window:_makePopupButton(popup, "Apply", 5)
-        apply.BackgroundColor3 = self.Window:_color("Button")
-        apply.Activated:Connect(function()
-            local red = clamp(tonumber(inputs[1].Text) or 0, 0, 255)
-            local green = clamp(tonumber(inputs[2].Text) or 0, 0, 255)
-            local blue = clamp(tonumber(inputs[3].Text) or 0, 0, 255)
-            element:Set(Color3.fromRGB(red, green, blue))
-            self.Window:_closePopups()
+        local function updateMap(input)
+            saturation = clamp((input.Position.X - map.AbsolutePosition.X) / math.max(1, map.AbsoluteSize.X), 0, 1)
+            value = clamp(1 - (input.Position.Y - map.AbsolutePosition.Y) / math.max(1, map.AbsoluteSize.Y), 0, 1)
+            syncColor(false)
+        end
+        local function updateHue(input)
+            hue = clamp((input.Position.Y - hueBar.AbsolutePosition.Y) / math.max(1, hueBar.AbsoluteSize.Y), 0, 1)
+            syncColor(false)
+        end
+        local mapDragging = false
+        local hueDragging = false
+        map.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                mapDragging = true
+                updateMap(input)
+            end
         end)
+        hueBar.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                hueDragging = true
+                updateHue(input)
+            end
+        end)
+        local pickerChanged = UserInputService.InputChanged:Connect(function(input)
+            if mapDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                updateMap(input)
+            elseif hueDragging and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                updateHue(input)
+            end
+        end)
+        local pickerEnded = UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                mapDragging = false
+                hueDragging = false
+            end
+        end)
+        self.Window._popupConnections[#self.Window._popupConnections + 1] = pickerChanged
+        self.Window._popupConnections[#self.Window._popupConnections + 1] = pickerEnded
+        syncColor(true)
+        local hexInput = create("TextBox", {
+            BackgroundColor3 = self.Window:_color("ElementBackground"),
+            BorderSizePixel = 0,
+            ClearTextOnFocus = false,
+            PlaceholderText = "#RRGGBB",
+            Text = toHex(element.Value),
+            TextColor3 = self.Window:_color("PopupContent"),
+            TextSize = 11,
+            Font = Enum.Font.Gotham,
+            Position = UDim2.fromOffset(112, 182),
+            Size = UDim2.fromOffset(124, 28),
+            ZIndex = 53,
+        }, popup)
+        addCorner(hexInput, 7)
+        addPadding(hexInput, 8, 8, 0, 0)
+        self.Window:_bind(hexInput, "BackgroundColor3", "ElementBackground")
+        self.Window:_bind(hexInput, "TextColor3", "PopupContent")
+        hexInput.FocusLost:Connect(function()
+            local hex = hexInput.Text:gsub("#", "")
+            if #hex == 6 and tonumber(hex, 16) then
+                local number = tonumber(hex, 16)
+                element:Set(Color3.fromRGB(bit32.rshift(number, 16) % 256, bit32.rshift(number, 8) % 256, number % 256))
+                hue, saturation, value = Color3.toHSV(element.Value)
+                syncColor(true)
+            else
+                hexInput.Text = toHex(element.Value)
+            end
+        end)
+    end)
+    swatch.MouseEnter:Connect(function()
+        tween(swatch, {Size = UDim2.fromOffset(50, 30)}, 0.12, Enum.EasingStyle.Quint)
+    end)
+    swatch.MouseLeave:Connect(function()
+        tween(swatch, {Size = UDim2.fromOffset(46, 28)}, 0.12, Enum.EasingStyle.Quint)
     end)
     element:_setValue(initial, true)
     return self:_finish(element, options)
@@ -2033,13 +2619,13 @@ function Section:Music(options)
         normalizedPlaylist[1] = {Id = "", Name = "No tracks"}
     end
 
-    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 150)
+    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, options.Height or 300)
     control:Destroy()
     textHolder.Size = UDim2.new(1, -24, 1, 0)
     local playerArea = create("Frame", {
         BackgroundTransparency = 1,
         Position = UDim2.new(0, 12, 0, 44),
-        Size = UDim2.new(1, -24, 0, 98),
+        Size = UDim2.new(1, -24, 0, 92),
     }, row)
     local trackLabel = self.Window:_textLabel(playerArea, "", 11, "ElementDesc", {
         Position = UDim2.fromOffset(0, 0),
@@ -2079,6 +2665,17 @@ function Section:Music(options)
         TextSize = 18,
         Font = Enum.Font.GothamMedium,
     }, playerArea)
+    local autoNext = create("TextButton", {
+        AutoButtonColor = false,
+        BackgroundColor3 = self.Window:_color("TabBackground"),
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(140, 26),
+        Size = UDim2.fromOffset(92, 28),
+        Text = "Auto next",
+        TextColor3 = self.Window:_color("Text"),
+        TextSize = 10,
+        Font = Enum.Font.GothamMedium,
+    }, playerArea)
     for _, button in ipairs({back, play, nextButton}) do
         addCorner(button, 7)
         self.Window:_bind(button, "TextColor3", "Text")
@@ -2086,6 +2683,9 @@ function Section:Music(options)
     self.Window:_bind(back, "BackgroundColor3", "TabBackground")
     self.Window:_bind(play, "BackgroundColor3", "Button")
     self.Window:_bind(nextButton, "BackgroundColor3", "TabBackground")
+    addCorner(autoNext, 7)
+    self.Window:_bind(autoNext, "BackgroundColor3", "TabBackground")
+    self.Window:_bind(autoNext, "TextColor3", "Text")
     local volumeBar = create("TextButton", {
         AutoButtonColor = false,
         BackgroundColor3 = self.Window:_color("TabBackground"),
@@ -2141,6 +2741,28 @@ function Section:Music(options)
         Size = UDim2.fromOffset(50, 18),
     })
 
+    local playlistTitle = self.Window:_textLabel(row, "Playlist", 11, "ElementDesc", {
+        Position = UDim2.fromOffset(12, 141),
+        Size = UDim2.new(1, -24, 0, 18),
+        Font = Enum.Font.GothamMedium,
+    })
+    local playlistFrame = create("ScrollingFrame", {
+        Active = true,
+        BackgroundColor3 = self.Window:_color("TabBackground"),
+        BackgroundTransparency = 0.15,
+        BorderSizePixel = 0,
+        CanvasSize = UDim2.new(0, 0, 0, 0),
+        Position = UDim2.fromOffset(12, 163),
+        ScrollBarImageColor3 = self.Window:_color("Accent"),
+        ScrollBarThickness = 3,
+        Size = UDim2.new(1, -24, 1, -175),
+        ZIndex = 4,
+    }, row)
+    addCorner(playlistFrame, 8)
+    self.Window:_bind(playlistFrame, "BackgroundColor3", "TabBackground")
+    local playlistLayout = addList(playlistFrame, Enum.FillDirection.Vertical, 4)
+    addPadding(playlistFrame, 6, 6, 6, 6)
+
     local musicSound = Instance.new("Sound")
     musicSound.Name = "SeraphMusic"
     musicSound.Volume = 0.7
@@ -2156,10 +2778,15 @@ function Section:Music(options)
     element.AllowReorder = options.AllowReorder == true
     element._gameVolume = 1
     element._gameSoundVolumes = {}
+    element.PlaylistFrame = playlistFrame
 
+    local renderPlaylist
     local function updateTrackLabel()
         local track = normalizedPlaylist[element.CurrentIndex]
         trackLabel.Text = (track and track.Name or "No tracks") .. "  " .. tostring(element.CurrentIndex) .. "/" .. tostring(#normalizedPlaylist)
+        if renderPlaylist then
+            renderPlaylist()
+        end
     end
     local function setGameVolume(value)
         element._gameVolume = clamp(value, 0, 1)
@@ -2202,6 +2829,85 @@ function Section:Music(options)
             play.Text = "Play"
         end
     end
+
+    renderPlaylist = function()
+        for _, child in ipairs(playlistFrame:GetChildren()) do
+            if child:IsA("GuiButton") or child.Name == "EmptyPlaylist" then
+                child:Destroy()
+            end
+        end
+        for index, track in ipairs(normalizedPlaylist) do
+            local trackButton = create("TextButton", {
+                AutoButtonColor = false,
+                BackgroundColor3 = index == element.CurrentIndex and self.Window:_color("Accent") or self.Window:_color("ElementBackground"),
+                BackgroundTransparency = index == element.CurrentIndex and 0 or 0.08,
+                BorderSizePixel = 0,
+                Size = UDim2.new(1, -6, 0, 34),
+                Text = "",
+                LayoutOrder = index,
+                ZIndex = 5,
+            }, playlistFrame)
+            addCorner(trackButton, 7)
+            local iconSource = options.TrackIcon or (Seraph.IconRuntime and "lucide:music-2")
+            if iconSource then
+                local trackIcon = self.Window:_icon(trackButton, iconSource, 16, "Icon")
+                trackIcon.Position = UDim2.fromOffset(9, 9)
+            else
+                self.Window:_textLabel(trackButton, "♪", 16, "Icon", {
+                    Position = UDim2.fromOffset(9, 5),
+                    Size = UDim2.fromOffset(16, 24),
+                    TextXAlignment = Enum.TextXAlignment.Center,
+                    ZIndex = 6,
+                })
+            end
+            local nameLabel = self.Window:_textLabel(trackButton, tostring(track.Name), 11, "Text", {
+                Position = UDim2.fromOffset(34, 0),
+                Size = UDim2.new(1, -80, 1, 0),
+                TextTruncate = Enum.TextTruncate.AtEnd,
+                ZIndex = 6,
+            })
+            local numberLabel = self.Window:_textLabel(trackButton, string.format("%02d", index), 10, "ElementDesc", {
+                AnchorPoint = Vector2.new(1, 0.5),
+                Position = UDim2.new(1, -10, 0.5, 0),
+                Size = UDim2.fromOffset(28, 18),
+                TextXAlignment = Enum.TextXAlignment.Right,
+                ZIndex = 6,
+            })
+            if index == element.CurrentIndex then
+                nameLabel.TextColor3 = self.Window:_color("Text")
+                numberLabel.TextColor3 = self.Window:_color("Text")
+            end
+            trackButton.MouseEnter:Connect(function()
+                tween(trackButton, {BackgroundTransparency = index == element.CurrentIndex and 0 or 0}, 0.12)
+            end)
+            trackButton.MouseLeave:Connect(function()
+                tween(trackButton, {BackgroundTransparency = index == element.CurrentIndex and 0 or 0.08}, 0.16)
+            end)
+            trackButton.Activated:Connect(function()
+                setTrack(index, true)
+            end)
+        end
+        if #normalizedPlaylist == 0 then
+            local empty = self.Window:_textLabel(playlistFrame, "Playlist is empty", 11, "ElementDesc", {
+                Name = "EmptyPlaylist",
+                Size = UDim2.new(1, -6, 0, 34),
+                TextXAlignment = Enum.TextXAlignment.Center,
+                LayoutOrder = 1,
+            })
+            empty.Name = "EmptyPlaylist"
+        end
+    end
+
+    autoNext.Activated:Connect(function()
+        element.AutoPlayNext = not element.AutoPlayNext
+        autoNext.Text = element.AutoPlayNext and "Auto next: ON" or "Auto next: OFF"
+        tween(autoNext, {BackgroundColor3 = element.AutoPlayNext and self.Window:_color("Accent") or self.Window:_color("TabBackground")}, 0.14)
+    end)
+    element.SetAutoPlayNext = function(_, enabled)
+        element.AutoPlayNext = enabled == true
+        autoNext.Text = element.AutoPlayNext and "Auto next: ON" or "Auto next: OFF"
+        return element
+    end
     element.Play = function()
         local track = normalizedPlaylist[element.CurrentIndex]
         if track and track.Id ~= "" then
@@ -2243,9 +2949,41 @@ function Section:Music(options)
         table.insert(normalizedPlaylist, toIndex, item)
         element.CurrentIndex = clamp(element.CurrentIndex, 1, #normalizedPlaylist)
         updateTrackLabel()
+        renderPlaylist()
+        return true
+    end
+    element.AddTrack = function(_, track)
+        if type(track) == "table" then
+            normalizedPlaylist[#normalizedPlaylist + 1] = {
+                Id = assetId(track.Id or track.AssetId or track.SoundId),
+                Name = track.Name or track.Title or tostring(track.Id or track.AssetId or track.SoundId),
+            }
+        else
+            normalizedPlaylist[#normalizedPlaylist + 1] = {Id = assetId(track), Name = tostring(track)}
+        end
+        element.Playlist = normalizedPlaylist
+        updateTrackLabel()
+        return element
+    end
+    element.RemoveTrack = function(_, index)
+        index = tonumber(index)
+        if not index or not normalizedPlaylist[index] then
+            return false
+        end
+        table.remove(normalizedPlaylist, index)
+        if #normalizedPlaylist > 0 then
+            element.CurrentIndex = clamp(element.CurrentIndex, 1, #normalizedPlaylist)
+        else
+            element.CurrentIndex = 1
+        end
+        updateTrackLabel()
         return true
     end
     element.Destroy = function(selfElement)
+        if selfElement._destroyed then
+            return
+        end
+        selfElement._destroyed = true
         selfElement:Stop()
         for sound, original in pairs(selfElement._gameSoundVolumes) do
             if sound and sound.Parent then
@@ -2255,6 +2993,7 @@ function Section:Music(options)
         selfElement._gameSoundVolumes = {}
         musicSound:Destroy()
         disconnectAll(selfElement._connections)
+        selfElement.Window:_unregisterElement(selfElement)
         if selfElement.Instance then
             selfElement.Instance:Destroy()
         end
@@ -2315,6 +3054,8 @@ function Section:Music(options)
     element:SetVolume(element.Volume)
     setGameVolume(element._gameVolume)
     setTrack(1, options.AutoPlay == true)
+    autoNext.Text = element.AutoPlayNext and "Auto next: ON" or "Auto next: OFF"
+    renderPlaylist()
     return self:_finish(element, options)
 end
 
@@ -2880,6 +3621,18 @@ function Window:SetSearchEnabled(enabled)
     return self
 end
 
+function Window:Refresh()
+    for _, section in ipairs(self._sections) do
+        if section and section.Refresh then
+            section:Refresh()
+        end
+    end
+    self:_applySearch(self.SearchBox and self.SearchBox.Text or self._searchQuery or "")
+    return self
+end
+
+Window.RefreshElements = Window.Refresh
+
 function Window:ConfigureProtection(options)
     self.ConfigManager:SetProtection(options)
     return self
@@ -2897,7 +3650,11 @@ function Window:Destroy()
     self.ConfigManager:Destroy()
     self:_closePopups()
     disconnectAll(self._connections)
-    for _, element in ipairs(self._elements) do
+    local elements = {}
+    for index, element in ipairs(self._elements) do
+        elements[index] = element
+    end
+    for _, element in ipairs(elements) do
         if element and element.Destroy then
             pcall(function()
                 element:Destroy()
@@ -2940,6 +3697,8 @@ for _, methodName in ipairs({
     "Slider",
     "Input",
     "Dropdown",
+    "DropDownPlayersAuto",
+    "DropdownPlayersAuto",
     "MultiDropdown",
     "Keybind",
     "Colorpicker",
@@ -3051,7 +3810,6 @@ function Seraph:CreateWindow(options)
         ZIndex = 1,
     }, screenGui)
     addCorner(main, 16)
-    addStroke(main, window:_color("Outline"), 0.55, 1)
     create("UISizeConstraint", {
         MinSize = Vector2.new(window._minSize.X.Offset, window._minSize.Y.Offset),
         MaxSize = Vector2.new(1280, 900),
@@ -3165,9 +3923,10 @@ function Seraph:CreateWindow(options)
 
     local searchSurface = create("Frame", {
         BackgroundColor3 = window:_color("ElementBackground"),
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
         Position = UDim2.fromOffset(14, 7),
-        Size = UDim2.fromOffset(270, 30),
+        Size = UDim2.fromOffset(334, 30),
         ZIndex = 4,
     }, toolbar)
     addCorner(searchSurface, 8)
@@ -3184,17 +3943,23 @@ function Seraph:CreateWindow(options)
             TextXAlignment = Enum.TextXAlignment.Center,
         })
     end
+    local protocol = window:_textLabel(searchSurface, "https://", 11, "Accent", {
+        Position = UDim2.fromOffset(31, 0),
+        Size = UDim2.fromOffset(44, 30),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5,
+    })
     local searchBox = create("TextBox", {
         BackgroundTransparency = 1,
         ClearTextOnFocus = false,
-        PlaceholderText = options.SearchPlaceholder or "Search",
+        PlaceholderText = options.SearchPlaceholder or "Search or enter a route",
         PlaceholderColor3 = window:_color("Placeholder"),
         Text = "",
         TextColor3 = window:_color("Text"),
         TextSize = 12,
         Font = Enum.Font.Gotham,
-        Position = UDim2.fromOffset(34, 0),
-        Size = UDim2.new(1, -42, 1, 0),
+        Position = UDim2.fromOffset(77, 0),
+        Size = UDim2.new(1, -107, 1, 0),
         TextXAlignment = Enum.TextXAlignment.Left,
         ZIndex = 5,
     }, searchSurface)
@@ -3203,10 +3968,33 @@ function Seraph:CreateWindow(options)
     searchSurface.Visible = window.SearchEnabled
     window.SearchSurface = searchSurface
     window.SearchBox = searchBox
+    local searchClear = create("TextButton", {
+        AutoButtonColor = false,
+        BackgroundTransparency = 1,
+        Position = UDim2.new(1, -30, 0, 3),
+        Size = UDim2.fromOffset(24, 24),
+        Text = "×",
+        TextColor3 = window:_color("Placeholder"),
+        TextSize = 15,
+        Font = Enum.Font.Gotham,
+        ZIndex = 6,
+    }, searchSurface)
+    searchClear.Activated:Connect(function()
+        searchBox.Text = ""
+        searchBox:CaptureFocus()
+    end)
+    searchClear.MouseEnter:Connect(function()
+        tween(searchClear, {TextColor3 = window:_color("Text")}, 0.1)
+    end)
+    searchClear.MouseLeave:Connect(function()
+        tween(searchClear, {TextColor3 = window:_color("Placeholder")}, 0.1)
+    end)
+    window:_bind(searchClear, "TextColor3", "Placeholder")
+    window.SearchClear = searchClear
 
-    local breadcrumb = window:_textLabel(toolbar, "seraph://" .. window.Title, 11, "ElementDesc", {
+    local breadcrumb = window:_textLabel(toolbar, "https://seraph.local/" .. window.Title, 11, "ElementDesc", {
         AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.fromOffset(302, 22),
+        Position = UDim2.fromOffset(362, 22),
         Size = UDim2.new(1, -390, 0, 24),
         TextTruncate = Enum.TextTruncate.AtEnd,
         ZIndex = 4,
