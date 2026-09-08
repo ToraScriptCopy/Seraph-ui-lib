@@ -363,46 +363,47 @@ end
 
 local DefaultTheme = {
     Name = "Seraph Dark",
-    Accent = colorFromHex("3B82F6"),
-    Background = colorFromHex("111827"),
-    BackgroundTransparency = 0.05,
-    Outline = colorFromHex("64748B"),
-    Text = colorFromHex("F8FAFC"),
-    Placeholder = colorFromHex("94A3B8"),
-    Button = colorFromHex("2563EB"),
-    Icon = colorFromHex("CBD5E1"),
-    Hover = colorFromHex("FFFFFF"),
-    WindowBackground = colorFromHex("0F172A"),
-    WindowShadow = colorFromHex("020617"),
-    DialogBackground = colorFromHex("111827"),
-    DialogBackgroundTransparency = 0.03,
-    DialogTitle = colorFromHex("F8FAFC"),
-    DialogContent = colorFromHex("CBD5E1"),
-    DialogIcon = colorFromHex("93C5FD"),
-    WindowTopbarButtonIcon = colorFromHex("CBD5E1"),
-    WindowTopbarTitle = colorFromHex("F8FAFC"),
-    WindowTopbarAuthor = colorFromHex("94A3B8"),
-    WindowTopbarIcon = colorFromHex("93C5FD"),
-    TabBackground = colorFromHex("1E293B"),
-    TabTitle = colorFromHex("CBD5E1"),
-    TabIcon = colorFromHex("94A3B8"),
-    ElementBackground = colorFromHex("172033"),
-    ElementTitle = colorFromHex("F8FAFC"),
-    ElementDesc = colorFromHex("94A3B8"),
-    ElementIcon = colorFromHex("CBD5E1"),
-    PopupBackground = colorFromHex("111827"),
+    Accent = colorFromHex("2196F3"),
+    Background = colorFromHex("191919"),
+    BackgroundTransparency = 0,
+    Outline = colorFromHex("323232"),
+    Text = colorFromHex("F5F5F5"),
+    Placeholder = colorFromHex("8A8A8A"),
+    Button = colorFromHex("323232"),
+    Icon = colorFromHex("BDBDBD"),
+    Hover = colorFromHex("2A2A2A"),
+    WindowBackground = colorFromHex("191919"),
+    WindowShadow = colorFromHex("000000"),
+    DialogBackground = colorFromHex("1F1F1F"),
+    DialogBackgroundTransparency = 0,
+    DialogTitle = colorFromHex("F5F5F5"),
+    DialogContent = colorFromHex("BDBDBD"),
+    DialogIcon = colorFromHex("64B5F6"),
+    WindowTopbarButtonIcon = colorFromHex("BDBDBD"),
+    WindowTopbarTitle = colorFromHex("F5F5F5"),
+    WindowTopbarAuthor = colorFromHex("8A8A8A"),
+    WindowTopbarIcon = colorFromHex("64B5F6"),
+    TabBackground = colorFromHex("1F1F1F"),
+    TabTitle = colorFromHex("BDBDBD"),
+    TabIcon = colorFromHex("8A8A8A"),
+    ElementBackground = colorFromHex("1F1F1F"),
+    ElementTitle = colorFromHex("F5F5F5"),
+    ElementDesc = colorFromHex("9E9E9E"),
+    ElementIcon = colorFromHex("BDBDBD"),
+    PopupBackground = colorFromHex("1F1F1F"),
     PopupBackgroundTransparency = 0.02,
-    PopupTitle = colorFromHex("F8FAFC"),
-    PopupContent = colorFromHex("CBD5E1"),
-    PopupIcon = colorFromHex("93C5FD"),
-    Toggle = colorFromHex("2563EB"),
-    ToggleBar = colorFromHex("E2E8F0"),
-    Checkbox = colorFromHex("2563EB"),
+    PopupTitle = colorFromHex("F5F5F5"),
+    PopupContent = colorFromHex("BDBDBD"),
+    PopupIcon = colorFromHex("64B5F6"),
+    Toggle = colorFromHex("2196F3"),
+    ToggleBar = colorFromHex("F5F5F5"),
+    Checkbox = colorFromHex("2196F3"),
     CheckboxIcon = colorFromHex("FFFFFF"),
-    Slider = colorFromHex("3B82F6"),
+    Slider = colorFromHex("2196F3"),
     SliderThumb = colorFromHex("FFFFFF"),
-    Danger = colorFromHex("EF4444"),
-    Success = colorFromHex("22C55E"),
+    Danger = colorFromHex("F44336"),
+    Success = colorFromHex("4CAF50"),
+    Warning = colorFromHex("FFC107"),
 }
 
 local LightTheme = mergeTables(DefaultTheme, {
@@ -459,7 +460,7 @@ local ThemeColorKeys = {
     "WindowTopbarButtonIcon", "WindowTopbarTitle", "WindowTopbarAuthor", "WindowTopbarIcon",
     "TabBackground", "TabTitle", "TabIcon", "ElementBackground", "ElementTitle", "ElementDesc",
     "ElementIcon", "PopupBackground", "PopupTitle", "PopupContent", "PopupIcon", "Toggle",
-    "ToggleBar", "Checkbox", "CheckboxIcon", "Slider", "SliderThumb", "Danger", "Success",
+    "ToggleBar", "Checkbox", "CheckboxIcon", "Slider", "SliderThumb", "Danger", "Success", "Warning",
 }
 
 local function normalizeTheme(theme)
@@ -528,8 +529,74 @@ function Seraph:RegisterIcons(iconMap)
     return self
 end
 
+function Seraph:LoadIcons(options)
+    options = options or {}
+    if self.IconRuntime then
+        return self.IconRuntime
+    end
+
+    local loader = loadstring
+    if type(loader) ~= "function" then
+        return nil, "loadstring is unavailable"
+    end
+
+    local url = options.URL or self.IconURL
+    local request = game.HttpGetAsync or game.HttpGet
+    if type(request) ~= "function" then
+        return nil, "game:HttpGet is unavailable"
+    end
+
+    local success, source = pcall(function()
+        return request(game, url)
+    end)
+    if not success then
+        return nil, source
+    end
+
+    local loadSuccess, runtime = pcall(function()
+        return loader(source)()
+    end)
+    if not loadSuccess or type(runtime) ~= "table" then
+        return nil, runtime or "icon runtime returned an invalid value"
+    end
+
+    if runtime.SetIconsType then
+        pcall(runtime.SetIconsType, options.Type or "lucide")
+    end
+    for packName, iconsData in pairs(self._customIconPacks or {}) do
+        if runtime.AddIcons then
+            pcall(runtime.AddIcons, packName, iconsData)
+        end
+    end
+    self.IconRuntime = runtime
+    self.IconProvider = runtime
+    return runtime
+end
+
+function Seraph:SetIconType(iconType)
+    if self.IconRuntime and type(self.IconRuntime.SetIconsType) == "function" then
+        self.IconRuntime.SetIconsType(iconType)
+    end
+    return self
+end
+
+function Seraph:AddIcons(packName, iconsData)
+    if self.IconRuntime and type(self.IconRuntime.AddIcons) == "function" then
+        self.IconRuntime.AddIcons(packName, iconsData)
+    else
+        self._customIconPacks = self._customIconPacks or {}
+        self._customIconPacks[packName] = iconsData
+    end
+    return self
+end
+
+Seraph.IconURL = "https://raw.githubusercontent.com/Footagesus/Icons/46d30c19ba7bc601d6ec794a48dc3a89568b1eec/Main-v2.lua"
+
 function Seraph:ResolveIcon(source)
     if type(source) == "table" then
+        if source.Icon then
+            return self:ResolveIcon(source.Icon)
+        end
         if source.AssetId or source.Id then
             return assetId(source.AssetId or source.Id)
         end
@@ -554,6 +621,8 @@ function Seraph:ResolveIcon(source)
             local success, provided
             if type(self.IconProvider) == "function" then
                 success, provided = pcall(self.IconProvider, source)
+            elseif type(self.IconProvider.GetIcon) == "function" then
+                success, provided = pcall(self.IconProvider.GetIcon, source)
             else
                 success, provided = pcall(function()
                     return self.IconProvider[source] or self.IconProvider[source:lower()]
@@ -563,7 +632,10 @@ function Seraph:ResolveIcon(source)
                 return assetId(provided)
             end
         end
-        return assetId(source)
+        if source:match("^rbxasset") or source:match("^https?://") or source:match("^%d+$") then
+            return assetId(source)
+        end
+        return self.LogoAsset
     end
 
     return assetId(source)
@@ -608,13 +680,43 @@ function Window:_textLabel(parent, text, size, colorRole, properties)
 end
 
 function Window:_icon(parent, source, size, role)
+    if type(source) == "table" and source.Icon and Seraph.IconRuntime and type(Seraph.IconRuntime.Image) == "function" then
+        local success, iconObject = pcall(Seraph.IconRuntime.Image, {
+            Icon = source.Icon,
+            Type = source.Type,
+            Colors = source.Colors or {self.Theme[role or "Icon"]},
+            Size = UDim2.fromOffset(size or 20, size or 20),
+        })
+        if success and type(iconObject) == "table" and iconObject.IconFrame then
+            local iconFrame = iconObject.IconFrame
+            iconFrame.Parent = parent
+            iconFrame.Size = UDim2.fromOffset(size or 20, size or 20)
+            iconFrame.BackgroundTransparency = 1
+            return iconFrame
+        end
+    end
+    local resolved = Seraph:ResolveIcon(source)
+    local image = resolved
+    local metadata
+    if type(resolved) == "table" then
+        image = resolved[1] or resolved.Image
+        metadata = resolved[2] or resolved.Metadata
+    end
     local icon = create("ImageLabel", {
         BackgroundTransparency = 1,
-        Image = Seraph:ResolveIcon(source),
+        Image = image or "",
         Size = UDim2.fromOffset(size or 20, size or 20),
         ScaleType = Enum.ScaleType.Fit,
         ImageColor3 = self.Theme[role or "Icon"],
     }, parent)
+    if metadata then
+        if metadata.ImageRectSize then
+            icon.ImageRectSize = metadata.ImageRectSize
+        end
+        if metadata.ImageRectPosition then
+            icon.ImageRectPosition = metadata.ImageRectPosition
+        end
+    end
     self:_bind(icon, "ImageColor3", role or "Icon")
     return icon
 end
@@ -671,8 +773,87 @@ function Window:_registerElement(element, options)
     if options and options.Flag then
         element:_setFlag(options.Flag)
     end
+    local tagText = options and options.Tag
+    if type(tagText) == "table" then
+        tagText = tagText.Text or tagText.Title or ""
+    end
+    element.SearchText = string.lower(table.concat({
+        tostring(options and options.Title or ""),
+        tostring(options and (options.Desc or options.Description) or ""),
+        tostring(tagText or ""),
+    }, " "))
+    element.Section = options and options.Section or element.Section
+    if element.Instance then
+        element.Instance.MouseEnter:Connect(function()
+            if element.Section then
+                element.Section.Window:_setActiveSection(element.Section)
+            end
+        end)
+    end
     self._elements[#self._elements + 1] = element
+    self._searchEntries[#self._searchEntries + 1] = element
     return element
+end
+
+function Window:_setActiveSection(section)
+    if not section or not section.Tab then
+        return
+    end
+    section.Tab._activeSection = section
+    self:_updateBreadcrumb(section.Tab, section)
+end
+
+function Window:_updateBreadcrumb(tab, section)
+    if not self.Breadcrumb then
+        return
+    end
+    tab = tab or self._activeTab
+    section = section or (tab and tab._activeSection)
+    local pieces = {self.Title}
+    if section and section.Title and trim(section.Title) ~= "" then
+        pieces[#pieces + 1] = section.Title
+    end
+    if tab and tab.Title then
+        pieces[#pieces + 1] = tab.Title
+    end
+    self.Breadcrumb.Text = "seraph://" .. table.concat(pieces, "/")
+end
+
+function Window:_applySearch(query)
+    query = string.lower(trim(query or ""))
+    local tabNameMatches = {}
+    local matchedTabs = {}
+    for _, tab in ipairs(self._tabs) do
+        tabNameMatches[tab] = query == "" or string.find(string.lower(tab.Title or tab.Name or ""), query, 1, true) ~= nil
+    end
+
+    for _, element in ipairs(self._searchEntries) do
+        local match = query == "" or tabNameMatches[element.Tab] or string.find(element.SearchText or "", query, 1, true) ~= nil
+        if element.Instance and element.Instance.Parent then
+            element.Instance.Visible = match
+        end
+        if match and element.Tab then
+            matchedTabs[element.Tab] = true
+        end
+    end
+
+    for _, section in ipairs(self._sections) do
+        if section.Instance and section.Instance.Parent then
+            local sectionMatch = query == "" or string.find(string.lower(section.Title or ""), query, 1, true) ~= nil
+            local anyVisible = sectionMatch
+            for _, element in ipairs(section.Elements) do
+                if element.Instance and element.Instance.Visible then
+                    anyVisible = true
+                    break
+                end
+            end
+            section.Instance.Visible = anyVisible
+        end
+    end
+
+    for _, tab in ipairs(self._tabs) do
+        tab.Button.Visible = query == "" or tabNameMatches[tab] == true or matchedTabs[tab] == true
+    end
 end
 
 function Window:_row(section, options, height)
@@ -687,6 +868,12 @@ function Window:_row(section, options, height)
     addCorner(row, 10)
     addStroke(row, self:_color("Outline"), 0.82, 1)
     self:_bind(row, "BackgroundColor3", "ElementBackground")
+    row.MouseEnter:Connect(function()
+        tween(row, {BackgroundColor3 = self:_color("Hover")}, 0.12)
+    end)
+    row.MouseLeave:Connect(function()
+        tween(row, {BackgroundColor3 = self:_color("ElementBackground")}, 0.16)
+    end)
 
     local content = create("Frame", {
         BackgroundTransparency = 1,
@@ -696,10 +883,23 @@ function Window:_row(section, options, height)
     local rowLayout = addList(content, Enum.FillDirection.Horizontal, 10, Enum.HorizontalAlignment.Left)
     rowLayout.VerticalAlignment = Enum.VerticalAlignment.Center
 
+    local hasIcon = options and options.Icon ~= nil
+    if hasIcon then
+        local iconHolder = create("Frame", {
+            BackgroundTransparency = 1,
+            Size = UDim2.fromOffset(24, 24),
+            LayoutOrder = 1,
+        }, content)
+        local icon = self:_icon(iconHolder, options.Icon, options.IconSize or 20, "ElementIcon")
+        icon.AnchorPoint = Vector2.new(0.5, 0.5)
+        icon.Position = UDim2.fromScale(0.5, 0.5)
+    end
+
     local textHolder = create("Frame", {
         BackgroundTransparency = 1,
-        Size = UDim2.new(1, -130, 1, 0),
+        Size = UDim2.new(1, hasIcon and -176 or -142, 1, 0),
         AutomaticSize = Enum.AutomaticSize.Y,
+        LayoutOrder = 1,
     }, content)
     local textLayout = addList(textHolder, Enum.FillDirection.Vertical, 2)
     textLayout.VerticalAlignment = Enum.VerticalAlignment.Center
@@ -785,13 +985,23 @@ function Window:_positionPopup(popup, anchor)
         local screenSize = self.ScreenGui.AbsoluteSize
         local x = position.X
         local y = position.Y + size.Y + 5
-        if x + popup.AbsoluteSize.X > screenSize.X then
-            x = screenSize.X - popup.AbsoluteSize.X - 8
+        local bounds = self.Main.AbsolutePosition
+        local boundsSize = self.Main.AbsoluteSize
+        local minX = math.max(8, bounds.X + 8)
+        local maxX = math.min(screenSize.X - popup.AbsoluteSize.X - 8, bounds.X + boundsSize.X - popup.AbsoluteSize.X - 8)
+        if maxX < minX then
+            maxX = minX
         end
-        if y + popup.AbsoluteSize.Y > screenSize.Y then
+        x = clamp(x, minX, maxX)
+        if y + popup.AbsoluteSize.Y > screenSize.Y - 8 or y + popup.AbsoluteSize.Y > bounds.Y + boundsSize.Y - 8 then
             y = position.Y - popup.AbsoluteSize.Y - 5
         end
-        popup.Position = UDim2.fromOffset(math.max(8, x), math.max(8, y))
+        local minY = math.max(8, bounds.Y + 8)
+        local maxY = math.min(screenSize.Y - popup.AbsoluteSize.Y - 8, bounds.Y + boundsSize.Y - popup.AbsoluteSize.Y - 8)
+        if maxY < minY then
+            maxY = minY
+        end
+        popup.Position = UDim2.fromOffset(x, clamp(y, minY, maxY))
     end
     update()
     local connection = RunService.RenderStepped:Connect(update)
@@ -866,6 +1076,7 @@ function Window:_showTab(tab)
         end
     end
     self._activeTab = tab
+    self:_updateBreadcrumb(tab, tab._activeSection)
 end
 
 function Window:_createTabButton(tab, options)
@@ -929,6 +1140,8 @@ function Window:Tab(options)
         PageList = pageList,
         Sections = {},
         Name = options.Name or options.Title or ("Tab" .. tostring(#self._tabs + 1)),
+        Title = options.Title or options.Name or ("Tab" .. tostring(#self._tabs + 1)),
+        _activeSection = nil,
     }, Tab)
     tab.Button, tab.Icon, tab.Label = self:_createTabButton(tab, options)
     self._tabs[#self._tabs + 1] = tab
@@ -963,11 +1176,13 @@ function Tab:Section(options)
         LayoutOrder = options.LayoutOrder or (#self.Sections + 1),
     }, self.Page)
     local title = options.Title or options.Name
+    local sectionHeader
     if title and trim(title) ~= "" then
-        self.Window:_textLabel(sectionFrame, title, 13, "Text", {
+        sectionHeader = self.Window:_textLabel(sectionFrame, title, 13, "Text", {
             Size = UDim2.new(1, 0, 0, 22),
             Font = Enum.Font.GothamMedium,
             TextXAlignment = Enum.TextXAlignment.Left,
+            Active = true,
         })
     end
 
@@ -986,16 +1201,63 @@ function Tab:Section(options)
         Instance = sectionFrame,
         Content = content,
         Elements = {},
+        Title = title or "",
+        Collapsed = false,
+        Header = sectionHeader,
+        Collapsible = options.Collapsible == true,
     }, Section)
+    if sectionHeader then
+        sectionHeader.MouseEnter:Connect(function()
+            self.Window:_setActiveSection(section)
+        end)
+        if section.Collapsible then
+            sectionHeader.InputBegan:Connect(function(input)
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                    section:SetCollapsed(not section.Collapsed)
+                end
+            end)
+        end
+    end
     self.Sections[#self.Sections + 1] = section
+    self.Window._sections[#self.Window._sections + 1] = section
+    if not self._activeSection then
+        self._activeSection = section
+    end
+    if self.Window._activeTab == self then
+        self.Window:_updateBreadcrumb(self, self._activeSection)
+    end
+    if section.Collapsible and options.Collapsed then
+        section:SetCollapsed(true)
+    end
     return section
+end
+
+function Section:Focus()
+    self.Window:_setActiveSection(self)
+    return self
+end
+
+function Section:SetCollapsed(collapsed)
+    if not self.Collapsible then
+        return self
+    end
+    self.Collapsed = collapsed == true
+    self.Content.Visible = not self.Collapsed
+    if self.Header then
+        self.Header.Text = (self.Collapsed and "▸ " or "▾ ") .. self.Title
+    end
+    return self
 end
 
 Tab.AddSection = Tab.Section
 
 function Section:_finish(element, options)
+    options = options or {}
+    element.Section = self
+    element.Tab = self.Tab
+    options.Section = self
     self.Elements[#self.Elements + 1] = element
-    return self.Window:_registerElement(element, options or {})
+    return self.Window:_registerElement(element, options)
 end
 
 function Section:Toggle(options)
@@ -2265,13 +2527,13 @@ function Window:SetTag(text, options)
     local side = string.lower(options.Side or "right")
     if side == "left" then
         self._tag.AnchorPoint = Vector2.new(0, 0.5)
-        self._tag.Position = UDim2.fromOffset(118, 28)
+        self._tag.Position = UDim2.new(0.46, 0, 0.5, 0)
     elseif side == "center" then
         self._tag.AnchorPoint = Vector2.new(0.5, 0.5)
-        self._tag.Position = UDim2.new(0.5, 0, 0.5, 0)
+        self._tag.Position = UDim2.new(0.58, 0, 0.5, 0)
     else
-        self._tag.AnchorPoint = Vector2.new(0, 0.5)
-        self._tag.Position = UDim2.fromOffset(260, 28)
+        self._tag.AnchorPoint = Vector2.new(0.5, 0.5)
+        self._tag.Position = UDim2.new(0.76, 0, 0.5, 0)
     end
     return self._tag
 end
@@ -2436,9 +2698,10 @@ Window.ShowPopup = Window.Popup
 function Window:Minimize()
     self._minimized = not self._minimized
     self.Body.Visible = not self._minimized
+    self.Toolbar.Visible = not self._minimized
     self.ResizeHandle.Visible = not self._minimized
-    self.Main.Size = self._minimized and UDim2.new(0, self._size.X.Offset, 0, 56) or self._size
-    self.Shadow.Size = self._minimized and UDim2.fromOffset(self._size.X.Offset + 18, 74) or UDim2.fromOffset(self._size.X.Offset + 18, self._size.Y.Offset + 18)
+    self.Main.Size = self._minimized and UDim2.new(0, self._size.X.Offset, 0, 58) or self._size
+    self.Shadow.Size = self._minimized and UDim2.fromOffset(self._size.X.Offset + 24, 82) or UDim2.fromOffset(self._size.X.Offset + 24, self._size.Y.Offset + 24)
     self.MinimizeButton.Text = self._minimized and "+" or "—"
     return self._minimized
 end
@@ -2450,6 +2713,24 @@ end
 
 function Window:SetVisible(visible)
     self.ScreenGui.Enabled = visible == true
+    return self
+end
+
+function Window:Search(query)
+    query = tostring(query or "")
+    if self.SearchBox then
+        self.SearchBox.Text = query
+    else
+        self:_applySearch(query)
+    end
+    return self
+end
+
+function Window:SetSearchEnabled(enabled)
+    self.SearchEnabled = enabled == true
+    if self.SearchSurface then
+        self.SearchSurface.Visible = self.SearchEnabled
+    end
     return self
 end
 
@@ -2551,27 +2832,38 @@ end
 
 function Seraph:CreateWindow(options)
     options = options or {}
+    local size = normalizeWindowSize(options.Size)
     local window = setmetatable({
         Name = options.Name or options.Title or "Seraph",
         Title = options.Title or "Seraph",
-        Author = options.Author or "Material UI",
+        Author = options.Author or "Material UI 3",
         Folder = sanitizeName(options.Folder or options.Name or options.Title or "Seraph", "Seraph"),
         RootFolder = sanitizeName(options.RootFolder or "Workspace", "Workspace"),
         TabMode = normalizeTabMode(options.TabMode or options.TabStyle or "Left"),
         Theme = Seraph:GetTheme(options.Theme),
-        _size = normalizeWindowSize(options.Size),
-        _minSize = normalizeWindowSize(options.MinSize or {X = 520, Y = 360}),
+        _size = size,
+        _minSize = normalizeWindowSize(options.MinSize or {X = 640, Y = 420}),
         _alive = true,
         _connections = {},
         _bindings = {},
         _tabs = {},
+        _sections = {},
         _elements = {},
+        _searchEntries = {},
         _flags = {},
         _popups = {},
         _popupConnections = {},
         _minimized = false,
+        SearchEnabled = options.SearchEnabled ~= false,
     }, Window)
     table.insert(Seraph.Windows, window)
+
+    if options.Icons then
+        Seraph:SetIconProvider(options.Icons)
+    end
+    if options.IconType and Seraph.IconRuntime and Seraph.IconRuntime.SetIconsType then
+        pcall(Seraph.IconRuntime.SetIconsType, options.IconType)
+    end
 
     local screenGui = create("ScreenGui", {
         Name = "SeraphUI_" .. tostring(math.random(100000, 999999)),
@@ -2588,10 +2880,10 @@ function Seraph:CreateWindow(options)
         BackgroundTransparency = 0.25,
         BorderSizePixel = 0,
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = window._size + UDim2.fromOffset(18, 18),
+        Size = UDim2.fromOffset(size.X.Offset + 24, size.Y.Offset + 24),
         ZIndex = 0,
     }, screenGui)
-    addCorner(shadow, 18)
+    addCorner(shadow, 20)
     window:_bind(shadow, "BackgroundColor3", "WindowShadow")
     window.Shadow = shadow
 
@@ -2601,50 +2893,73 @@ function Seraph:CreateWindow(options)
         BackgroundTransparency = window.Theme.BackgroundTransparency or 0,
         BorderSizePixel = 0,
         Position = UDim2.fromScale(0.5, 0.5),
-        Size = window._size,
-        ClipsDescendants = true,
+        Size = size,
+        ClipsDescendants = false,
         ZIndex = 1,
     }, screenGui)
     addCorner(main, 16)
-    addStroke(main, window:_color("Outline"), 0.72, 1)
+    addStroke(main, window:_color("Outline"), 0.55, 1)
+    create("UISizeConstraint", {
+        MinSize = Vector2.new(window._minSize.X.Offset, window._minSize.Y.Offset),
+        MaxSize = Vector2.new(1280, 900),
+    }, main)
     window:_bind(main, "BackgroundColor3", "WindowBackground")
     window.Main = main
 
     local header = create("Frame", {
         BackgroundColor3 = window:_color("Background"),
-        BackgroundTransparency = 0.1,
+        BackgroundTransparency = 0,
         BorderSizePixel = 0,
-        Size = UDim2.new(1, 0, 0, 56),
+        Size = UDim2.new(1, 0, 0, 58),
         ZIndex = 3,
     }, main)
     window:_bind(header, "BackgroundColor3", "Background")
-    local logo = window:_icon(header, options.Icon or Seraph.LogoAsset, 30, "WindowTopbarIcon")
-    logo.Position = UDim2.fromOffset(16, 13)
+    window.Header = header
+
+    local trafficColors = {
+        {Color = "Danger", X = 16},
+        {Color = "Warning", X = 32},
+        {Color = "Success", X = 48},
+    }
+    for _, dot in ipairs(trafficColors) do
+        local traffic = create("Frame", {
+            BackgroundColor3 = window:_color(dot.Color),
+            BorderSizePixel = 0,
+            Position = UDim2.fromOffset(dot.X, 23),
+            Size = UDim2.fromOffset(8, 8),
+            ZIndex = 4,
+        }, header)
+        addCorner(traffic, 4)
+        window:_bind(traffic, "BackgroundColor3", dot.Color)
+    end
+
+    local logo = window:_icon(header, options.Icon or Seraph.LogoAsset, 26, "WindowTopbarIcon")
+    logo.Position = UDim2.fromOffset(72, 16)
     local title = window:_textLabel(header, window.Title, 15, "WindowTopbarTitle", {
-        Position = UDim2.fromOffset(56, 8),
-        Size = UDim2.new(0.52, -56, 0, 22),
+        Position = UDim2.fromOffset(108, 9),
+        Size = UDim2.new(0.48, -108, 0, 22),
         Font = Enum.Font.GothamMedium,
         TextTruncate = Enum.TextTruncate.AtEnd,
         ZIndex = 4,
     })
     local author = window:_textLabel(header, window.Author, 10, "WindowTopbarAuthor", {
-        Position = UDim2.fromOffset(57, 30),
-        Size = UDim2.new(0.52, -57, 0, 16),
+        Position = UDim2.fromOffset(109, 32),
+        Size = UDim2.new(0.48, -109, 0, 16),
         TextTruncate = Enum.TextTruncate.AtEnd,
         ZIndex = 4,
     })
     local tag = window:_textLabel(header, "", 10, "Accent", {
-        AnchorPoint = Vector2.new(0, 0.5),
-        Position = UDim2.fromOffset(260, 28),
-        Size = UDim2.fromOffset(84, 22),
+        AnchorPoint = Vector2.new(0.5, 0.5),
+        Position = UDim2.new(0.55, 0, 0.5, 0),
+        Size = UDim2.fromOffset(86, 22),
         TextXAlignment = Enum.TextXAlignment.Center,
         BackgroundColor3 = window:_color("Accent"),
-        BackgroundTransparency = 0.1,
+        BackgroundTransparency = 0.04,
         TextColor3 = window:_color("Text"),
         Visible = false,
         ZIndex = 4,
     })
-    addCorner(tag, 6)
+    addCorner(tag, 7)
     window:_bind(tag, "BackgroundColor3", "Accent")
     window:_bind(tag, "TextColor3", "Text")
     window._tag = tag
@@ -2652,7 +2967,7 @@ function Seraph:CreateWindow(options)
     local minimizeButton = create("TextButton", {
         AutoButtonColor = false,
         BackgroundTransparency = 1,
-        Position = UDim2.new(1, -72, 0, 16),
+        Position = UDim2.new(1, -72, 0, 17),
         Size = UDim2.fromOffset(24, 24),
         Text = "—",
         TextColor3 = window:_color("WindowTopbarButtonIcon"),
@@ -2663,7 +2978,7 @@ function Seraph:CreateWindow(options)
     local closeButton = create("TextButton", {
         AutoButtonColor = false,
         BackgroundTransparency = 1,
-        Position = UDim2.new(1, -40, 0, 16),
+        Position = UDim2.new(1, -40, 0, 17),
         Size = UDim2.fromOffset(24, 24),
         Text = "×",
         TextColor3 = window:_color("WindowTopbarButtonIcon"),
@@ -2681,10 +2996,65 @@ function Seraph:CreateWindow(options)
     end)
     window.MinimizeButton = minimizeButton
 
+    local toolbar = create("Frame", {
+        BackgroundColor3 = window:_color("Background"),
+        BackgroundTransparency = 0.04,
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(0, 58),
+        Size = UDim2.new(1, 0, 0, 44),
+        ZIndex = 3,
+    }, main)
+    window:_bind(toolbar, "BackgroundColor3", "Background")
+    window.Toolbar = toolbar
+
+    local searchSurface = create("Frame", {
+        BackgroundColor3 = window:_color("ElementBackground"),
+        BorderSizePixel = 0,
+        Position = UDim2.fromOffset(14, 7),
+        Size = UDim2.fromOffset(270, 30),
+        ZIndex = 4,
+    }, toolbar)
+    addCorner(searchSurface, 8)
+    addStroke(searchSurface, window:_color("Outline"), 0.65, 1)
+    window:_bind(searchSurface, "BackgroundColor3", "ElementBackground")
+    local searchIcon = window:_icon(searchSurface, options.SearchIcon or (Seraph.IconRuntime and "search" or Seraph.LogoAsset), 16, "Icon")
+    searchIcon.Position = UDim2.fromOffset(9, 7)
+    local searchBox = create("TextBox", {
+        BackgroundTransparency = 1,
+        ClearTextOnFocus = false,
+        PlaceholderText = options.SearchPlaceholder or "Search",
+        PlaceholderColor3 = window:_color("Placeholder"),
+        Text = "",
+        TextColor3 = window:_color("Text"),
+        TextSize = 12,
+        Font = Enum.Font.Gotham,
+        Position = UDim2.fromOffset(34, 0),
+        Size = UDim2.new(1, -42, 1, 0),
+        TextXAlignment = Enum.TextXAlignment.Left,
+        ZIndex = 5,
+    }, searchSurface)
+    window:_bind(searchBox, "PlaceholderColor3", "Placeholder")
+    window:_bind(searchBox, "TextColor3", "Text")
+    searchSurface.Visible = window.SearchEnabled
+    window.SearchSurface = searchSurface
+    window.SearchBox = searchBox
+
+    local breadcrumb = window:_textLabel(toolbar, "seraph://" .. window.Title, 11, "ElementDesc", {
+        AnchorPoint = Vector2.new(0, 0.5),
+        Position = UDim2.fromOffset(302, 22),
+        Size = UDim2.new(1, -390, 0, 24),
+        TextTruncate = Enum.TextTruncate.AtEnd,
+        ZIndex = 4,
+    })
+    window.Breadcrumb = breadcrumb
+    window._connections[#window._connections + 1] = searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+        window:_applySearch(searchBox.Text)
+    end)
+
     local body = create("Frame", {
         BackgroundTransparency = 1,
-        Position = UDim2.fromOffset(0, 56),
-        Size = UDim2.new(1, 0, 1, -56),
+        Position = UDim2.fromOffset(0, 102),
+        Size = UDim2.new(1, 0, 1, -102),
         ZIndex = 2,
     }, main)
     window.Body = body
@@ -2694,26 +3064,28 @@ function Seraph:CreateWindow(options)
     if window.TabMode == "Left" then
         tabList = create("ScrollingFrame", {
             Active = true,
-            BackgroundColor3 = window:_color("Background"),
-            BackgroundTransparency = 0.18,
+            BackgroundColor3 = window:_color("ElementBackground"),
+            BackgroundTransparency = 0,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.fromOffset(10, 10),
+            Position = UDim2.fromOffset(12, 10),
             ScrollBarImageColor3 = window:_color("Accent"),
             ScrollBarThickness = 3,
-            Size = UDim2.new(0, 154, 1, -20),
+            Size = UDim2.new(0, 176, 1, -22),
             ZIndex = 3,
         }, body)
         addCorner(tabList, 12)
+        addStroke(tabList, window:_color("Outline"), 0.72, 1)
         addPadding(tabList, 8, 8, 10, 10)
-        local tabLayout = addList(tabList, Enum.FillDirection.Vertical, 7)
+        window:_bind(tabList, "BackgroundColor3", "ElementBackground")
+        local tabLayout = addList(tabList, Enum.FillDirection.Vertical, 6)
         tabLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             tabList.CanvasSize = UDim2.fromOffset(0, tabLayout.AbsoluteContentSize.Y + 22)
         end)
         pages = create("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(174, 10),
-            Size = UDim2.new(1, -184, 1, -20),
+            Position = UDim2.fromOffset(200, 10),
+            Size = UDim2.new(1, -212, 1, -22),
             ZIndex = 2,
         }, body)
     else
@@ -2722,10 +3094,10 @@ function Seraph:CreateWindow(options)
             BackgroundTransparency = 1,
             BorderSizePixel = 0,
             CanvasSize = UDim2.new(0, 0, 0, 0),
-            Position = UDim2.fromOffset(10, 8),
+            Position = UDim2.fromOffset(12, 8),
             ScrollBarThickness = 0,
             ScrollingDirection = Enum.ScrollingDirection.X,
-            Size = UDim2.new(1, -20, 0, 42),
+            Size = UDim2.new(1, -24, 0, 42),
             ZIndex = 3,
         }, body)
         local tabLayout = addList(tabList, Enum.FillDirection.Horizontal, 8)
@@ -2734,14 +3106,13 @@ function Seraph:CreateWindow(options)
         end)
         pages = create("Frame", {
             BackgroundTransparency = 1,
-            Position = UDim2.fromOffset(10, 58),
-            Size = UDim2.new(1, -20, 1, -68),
+            Position = UDim2.fromOffset(12, 58),
+            Size = UDim2.new(1, -24, 1, -68),
             ZIndex = 2,
         }, body)
     end
     window.TabList = tabList
     window.Pages = pages
-    window:_bind(tabList, "BackgroundColor3", "Background")
 
     local notificationHolder = create("Frame", {
         BackgroundTransparency = 1,
@@ -2807,7 +3178,7 @@ function Seraph:CreateWindow(options)
             local height = math.max(window._minSize.Y.Offset, resizeSize.Y + delta.Y)
             window._size = UDim2.fromOffset(width, height)
             main.Size = window._size
-            shadow.Size = UDim2.fromOffset(width + 18, height + 18)
+            shadow.Size = UDim2.fromOffset(width + 24, height + 24)
         end
     end)
 

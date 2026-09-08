@@ -23,6 +23,7 @@ local Window = Seraph:CreateWindow({
     Author = "My project",
     TabMode = "Left", -- "Left" или "Top"
     ToggleKey = Enum.KeyCode.RightShift,
+    SearchEnabled = true,
 })
 
 local Tab = Window:Tab({
@@ -37,6 +38,13 @@ Tab:Toggle({
         print(value)
     end,
 })
+```
+
+В новой browser-компоновке под верхней панелью находится поисковая строка. Она ищет по вкладкам, секциям, названиям, описаниям и тегам элементов. Справа отображается маршрут `seraph://Название/Секция/Вкладка`.
+
+```lua
+Window:Search("slider")
+Window:SetSearchEnabled(false)
 ```
 
 Доступны псевдонимы `Seraph.CreateWindow`, `Seraph.Create` и `Seraph.Window`.
@@ -215,6 +223,24 @@ music:MoveTrack(2, 1)
 
 ## Иконки
 
+Seraph поддерживает API из pinned-ревизии [Footagesus/Icons](https://github.com/Footagesus/Icons/tree/46d30c19ba7bc601d6ec794a48dc3a89568b1eec). Библиотека не копирует огромную таблицу иконок в каждый проект: `LoadIcons` один раз загружает официальный `Main-v2.lua`, после чего имена передаются в `GetIcon`.
+
+```lua
+local Icons = Seraph:LoadIcons({Type = "lucide"})
+
+local Window = Seraph:CreateWindow({
+    Icon = "lucide:house",
+    SearchIcon = "lucide:search",
+})
+
+local Tab = Window:Tab({
+    Title = "Settings",
+    Icon = "lucide:settings-2",
+})
+```
+
+Поддерживаются наборы `lucide`, `solar`, `craft`, `geist`, `sfsymbols` и другие наборы, доступные Icons V2. Вызов `LoadIcons` кэшируется и выполняется один раз.
+
 Иконка может быть:
 
 - числовым asset ID;
@@ -242,7 +268,7 @@ Seraph:UseLucide(Lucide)
 -- или: Seraph:SetIconProvider(function(name) return Lucide[name] end)
 ```
 
-`RegisterLucideIcon` — совместимый реестр имён. Библиотека не скачивает сторонний Lucide runtime и не делает фиктивное распознавание имён: конкретное имя должно быть сопоставлено с реальным Roblox image asset в вашем проекте. Это позволяет подключить любой Lucide-адаптер через одну таблицу регистраций.
+`RegisterLucideIcon` — локальный реестр имён. Если `LoadIcons` не вызывается, конкретное имя должно быть сопоставлено с реальным Roblox image asset в вашем проекте; это позволяет использовать библиотеку без дополнительного сетевого запроса. Если нужны все наборы Icons V2, используйте `LoadIcons` один раз перед созданием окна.
 
 Логотип по умолчанию настроен на предоставленные asset IDs: `17332630310` и `17332630292`.
 

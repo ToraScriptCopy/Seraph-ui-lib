@@ -23,6 +23,10 @@ local Window = Seraph:CreateWindow({
 WINDOW METHODS
 Tab, CreateTab, AddTab, Notify, Popup, SetTheme, AddTheme, SetTag, Toggle, SetVisible, Minimize, BindKey, Destroy, ConfigureProtection.
 
+The browser toolbar has a search field and a seraph:// route label. Search matches tab names, section titles, element titles, descriptions, and tags.
+Window:Search("slider")
+Window:SetSearchEnabled(false)
+
 TABS AND SECTIONS
 local Tab = Window:Tab({Title = "Main", Icon = 17332630310})
 Tab:TabSection("Group") -- sidebar mode only
@@ -46,6 +50,11 @@ toggle:Set(true)
 print(toggle:Get())
 
 ICONS
+Load the pinned Icons V2 runtime:
+local Icons = Seraph:LoadIcons({Type = "lucide"})
+local Window = Seraph:CreateWindow({Icon = "lucide:house", SearchIcon = "lucide:search"})
+Supported packs include lucide, solar, craft, geist, sfsymbols, gravity and other Icons V2 packs.
+
 Seraph:RegisterIcon("home", 17332630310)
 Seraph:RegisterLucideIcon("settings", "rbxassetid://17332630292")
 Accepted icon sources: numeric asset IDs, rbxassetid strings, URLs, {Id = ...}, {AssetId = ...}, and registered names. Lucide support is an asset-name registry; map names to real Roblox image assets.

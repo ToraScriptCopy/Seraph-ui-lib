@@ -2,18 +2,22 @@
 local RAW_URL = "https://raw.githubusercontent.com/ToraScriptCopy/Seraph-ui-lib/main/source.lua"
 local Seraph = loadstring(game:HttpGet(RAW_URL))()
 
+-- Optional external icon runtime from the pinned Footagesus/Icons revision.
+-- It supports lucide, solar, craft, geist, sfsymbols and other packs.
+local Icons = Seraph:LoadIcons({Type = "lucide"})
+
 Seraph:AddTheme({
-    Name = "Ocean Glass",
-    Accent = Color3.fromRGB(14, 165, 233),
-    Button = Color3.fromRGB(2, 132, 199),
-    Toggle = Color3.fromRGB(14, 165, 233),
-    Slider = Color3.fromRGB(56, 189, 248),
-    WindowBackground = Color3.fromRGB(8, 18, 32),
-    Background = Color3.fromRGB(12, 30, 50),
-    ElementBackground = Color3.fromRGB(16, 40, 64),
-    TabBackground = Color3.fromRGB(18, 48, 76),
-    Text = Color3.fromRGB(240, 249, 255),
-    ElementDesc = Color3.fromRGB(148, 204, 230),
+    Name = "Seraph Blue",
+    Accent = Color3.fromRGB(33, 150, 243),
+    Button = Color3.fromRGB(50, 50, 50),
+    Toggle = Color3.fromRGB(33, 150, 243),
+    Slider = Color3.fromRGB(33, 150, 243),
+    WindowBackground = Color3.fromRGB(25, 25, 25),
+    Background = Color3.fromRGB(23, 23, 23),
+    ElementBackground = Color3.fromRGB(31, 31, 31),
+    TabBackground = Color3.fromRGB(31, 31, 31),
+    Text = Color3.fromRGB(245, 245, 245),
+    ElementDesc = Color3.fromRGB(158, 158, 158),
 })
 
 -- A registered icon can be a Roblox asset ID, rbxassetid URL, or any icon
@@ -25,8 +29,9 @@ Seraph:RegisterLucideIcon("settings", 17332630310)
 local Window = Seraph:CreateWindow({
     Title = "Seraph Browser",
     Author = "Material Design 3 example",
-    Icon = "home",
-    Theme = "Ocean Glass",
+    Icon = "lucide:house",
+    SearchIcon = "lucide:search",
+    Theme = "Seraph Blue",
     TabMode = "Left", -- use "Top" for top tabs
     ToggleKey = Enum.KeyCode.RightShift,
     Folder = "SeraphDemo",
@@ -41,7 +46,7 @@ local Window = Seraph:CreateWindow({
 local Home = Window:Tab({
     Name = "Home",
     Title = "Home",
-    Icon = "home",
+    Icon = "lucide:house",
 })
 
 -- Tab:Section and Section:Section are both supported. Tab-level elements
@@ -147,7 +152,7 @@ Controls:Paragraph({
 local Media = Window:Tab({
     Name = "Media",
     Title = "Media",
-    Icon = "settings",
+    Icon = "lucide:music-2",
 })
 
 Media:Section({Title = "Music"}):Music({
@@ -165,7 +170,7 @@ Media:Section({Title = "Music"}):Music({
 local CodeTab = Window:Tab({
     Name = "Code",
     Title = "Code",
-    Icon = "settings",
+    Icon = "lucide:code-2",
 })
 
 CodeTab:Code({
@@ -193,4 +198,5 @@ myConfig:Load()
 -- To switch themes later:
 -- Window:SetTheme("Seraph Light")
 -- Window:SetTheme("Seraph Midnight")
--- Window:SetTheme("Ocean Glass")
+-- Window:SetTheme("Seraph Blue")
+-- Window:Search("slider")

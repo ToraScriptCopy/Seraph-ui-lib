@@ -29,6 +29,13 @@ local Window = Seraph:CreateWindow({
 
 Window methods: `Tab`, `CreateTab`, `AddTab`, `Notify`, `Popup`, `SetTheme`, `AddTheme`, `SetTag`, `Toggle`, `SetVisible`, `Minimize`, `BindKey`, `Destroy`, `ConfigureProtection`.
 
+The browser toolbar includes a search field and a route label. Search is case-insensitive and matches tab names, section titles, element titles, descriptions, and tags.
+
+```lua
+Window:Search("slider")
+Window:SetSearchEnabled(false)
+```
+
 ## Tabs and sections
 
 ```lua
@@ -93,6 +100,18 @@ local player = Section:Music({
 The player includes play/pause, previous/next, music volume, game-volume control, and optional playlist reordering. Game-volume changes snapshot existing `Sound` objects and exclude the Seraph music sound.
 
 ## Icons
+
+Seraph can load the pinned `Footagesus/Icons` V2 runtime:
+
+```lua
+local Icons = Seraph:LoadIcons({Type = "lucide"})
+local Window = Seraph:CreateWindow({
+    Icon = "lucide:house",
+    SearchIcon = "lucide:search",
+})
+```
+
+The runtime supports Lucide, Solar, Craft, Geist, SF Symbols, Gravity and other packs exposed by Icons V2.
 
 ```lua
 Seraph:RegisterIcon("home", 17332630310)
