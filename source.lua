@@ -714,7 +714,9 @@ function Window:_icon(parent, source, size, role)
             icon.ImageRectSize = metadata.ImageRectSize
         end
         if metadata.ImageRectPosition then
-            icon.ImageRectPosition = metadata.ImageRectPosition
+            icon.ImageRectOffset = metadata.ImageRectPosition
+        elseif metadata.ImageRectOffset then
+            icon.ImageRectOffset = metadata.ImageRectOffset
         end
     end
     self:_bind(icon, "ImageColor3", role or "Icon")
@@ -841,11 +843,22 @@ function Window:_applySearch(query)
         if section.Instance and section.Instance.Parent then
             local sectionMatch = query == "" or string.find(string.lower(section.Title or ""), query, 1, true) ~= nil
             local anyVisible = sectionMatch
-            for _, element in ipairs(section.Elements) do
-                if element.Instance and element.Instance.Visible then
-                    anyVisible = true
-                    break
+            if sectionMatch and query ~= "" then
+                for _, element in ipairs(section.Elements) do
+                    if element.Instance and element.Instance.Parent then
+                        element.Instance.Visible = true
+                    end
                 end
+            else
+                for _, element in ipairs(section.Elements) do
+                    if element.Instance and element.Instance.Visible then
+                        anyVisible = true
+                        break
+                    end
+                end
+            end
+            if sectionMatch and section.Tab then
+                matchedTabs[section.Tab] = true
             end
             section.Instance.Visible = anyVisible
         end
@@ -1829,6 +1842,92 @@ function Section:Paragraph(options)
     return self:_finish(element, options)
 end
 
+function Section:Label(options)
+    options = type(options) == "string" and {Content = options} or (options or {})
+    return self:Paragraph(options)
+end
+
+function Section:Status(options)
+    options = type(options) == "string" and {Title = options} or (options or {})
+    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 52)
+    local statusColor = color(options.Color, self.Window:_color(options.State == "Error" and "Danger" or (options.State == "Success" and "Success" or "Accent")))
+    local dot = create("Frame", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        BackgroundColor3 = statusColor,
+        BorderSizePixel = 0,
+        Position = UDim2.new(1, 0, 0.5, 0),
+        Size = UDim2.fromOffset(11, 11),
+    }, control)
+    addCorner(dot, 6)
+    local statusText = self.Window:_textLabel(control, options.Status or options.State or "Ready", 11, "ElementDesc", {
+        AnchorPoint = Vector2.new(1, 0.5),
+        Position = UDim2.new(1, -18, 0.5, 0),
+        Size = UDim2.fromOffset(82, 20),
+        TextXAlignment = Enum.TextXAlignment.Right,
+    })
+    local element = self.Window:_newElement("Status", row, options.Status or options.State or "Ready", options.Callback)
+    element.Control = statusText
+    element._setValue = function(selfElement, value, silent)
+        local nextText = type(value) == "table" and (value.Text or value.Status or value.State) or tostring(value or "Ready")
+        selfElement.Value = nextText
+        statusText.Text = nextText
+        if type(value) == "table" and value.Color then
+            dot.BackgroundColor3 = color(value.Color, statusColor)
+        end
+        if not silent then
+            safeCall(selfElement.Callback, value)
+        end
+    end
+    element:Set(options.Status or options.State or "Ready", true)
+    return self:_finish(element, options)
+end
+
+function Section:Progress(options)
+    options = options or {}
+    local minimum = tonumber(options.Min or options.Minimum) or 0
+    local maximum = tonumber(options.Max or options.Maximum) or 100
+    local initial = clamp(tonumber(options.Default or options.Value) or minimum, minimum, maximum)
+    local row, content, textHolder, titleLabel, control = self.Window:_row(self, options, 72)
+    control.Size = UDim2.fromOffset(145, 46)
+    local valueLabel = self.Window:_textLabel(control, "", 11, "ElementDesc", {
+        AnchorPoint = Vector2.new(1, 0),
+        Position = UDim2.new(1, 0, 0, 0),
+        Size = UDim2.fromOffset(54, 18),
+        TextXAlignment = Enum.TextXAlignment.Right,
+    })
+    local track = create("Frame", {
+        BackgroundColor3 = self.Window:_color("TabBackground"),
+        BorderSizePixel = 0,
+        Position = UDim2.new(0, 0, 0, 29),
+        Size = UDim2.new(1, 0, 0, 7),
+    }, control)
+    addCorner(track, 4)
+    self.Window:_bind(track, "BackgroundColor3", "TabBackground")
+    local fill = create("Frame", {
+        BackgroundColor3 = self.Window:_color("Accent"),
+        BorderSizePixel = 0,
+        Size = UDim2.new(0, 0, 1, 0),
+    }, track)
+    addCorner(fill, 4)
+    self.Window:_bind(fill, "BackgroundColor3", "Accent")
+    local element = self.Window:_newElement("Progress", row, initial, options.Callback)
+    element.Min = minimum
+    element.Max = maximum
+    element.Control = track
+    element._setValue = function(selfElement, value, silent)
+        local nextValue = clamp(tonumber(value) or minimum, minimum, maximum)
+        selfElement.Value = nextValue
+        local percent = (nextValue - minimum) / math.max(0.0001, maximum - minimum)
+        fill.Size = UDim2.new(percent, 0, 1, 0)
+        valueLabel.Text = tostring(round(nextValue, 1))
+        if not silent then
+            safeCall(selfElement.Callback, nextValue)
+        end
+    end
+    element:Set(initial, true)
+    return self:_finish(element, options)
+end
+
 function Section:Code(options)
     options = type(options) == "string" and {Code = options} or (options or {})
     local row = create("Frame", {
@@ -2543,11 +2642,12 @@ Window.AddTag = Window.SetTag
 function Window:Notify(options)
     options = type(options) == "string" and {Content = options} or (options or {})
     local duration = tonumber(options.Duration) or 4
+    local toastHeight = options.Height or 74
     local toast = create("Frame", {
         BackgroundColor3 = self:_color("PopupBackground"),
         BackgroundTransparency = self.Theme.PopupBackgroundTransparency or 0,
         BorderSizePixel = 0,
-        Size = UDim2.fromOffset(300, options.Height or 74),
+        Size = UDim2.fromOffset(300, toastHeight),
         Position = UDim2.new(1, 320, 1, -90),
         AnchorPoint = Vector2.new(1, 1),
         ZIndex = 70,
@@ -2558,9 +2658,24 @@ function Window:Notify(options)
     local bar = create("Frame", {
         BackgroundColor3 = options.Type == "Error" and self:_color("Danger") or (options.Type == "Success" and self:_color("Success") or self:_color("Accent")),
         BorderSizePixel = 0,
-        Size = UDim2.fromOffset(4, 74),
+        Size = UDim2.fromOffset(4, toastHeight),
         ZIndex = 71,
     }, toast)
+    local function removeToast()
+        for index, item in ipairs(self._notifications) do
+            if item == toast then
+                table.remove(self._notifications, index)
+                break
+            end
+        end
+        for index, item in ipairs(self._notifications) do
+            if item and item.Parent then
+                local target = UDim2.new(1, -14, 1, -14 - ((index - 1) * (toastHeight + 8)))
+                tween(item, {Position = target}, 0.16)
+            end
+        end
+    end
+    table.insert(self._notifications, 1, toast)
     addCorner(bar, 2)
     local title = self:_textLabel(toast, options.Title or "Seraph", 13, "PopupTitle", {
         Position = UDim2.fromOffset(16, 9),
@@ -2593,10 +2708,17 @@ function Window:Notify(options)
                 if toast.Parent then
                     toast:Destroy()
                 end
+                removeToast()
             end)
         end
     end)
     tween(toast, {Position = UDim2.new(1, -14, 1, -14)}, 0.25)
+    for index = 2, #self._notifications do
+        local item = self._notifications[index]
+        if item and item.Parent then
+            tween(item, {Position = UDim2.new(1, -14, 1, -14 - ((index - 1) * (toastHeight + 8)))}, 0.2)
+        end
+    end
     task.delay(duration, function()
         if toast.Parent then
             tween(toast, {Position = UDim2.new(1, 320, 1, -90)}, 0.22)
@@ -2604,6 +2726,7 @@ function Window:Notify(options)
                 if toast.Parent then
                     toast:Destroy()
                 end
+                removeToast()
             end)
         end
     end)
@@ -2801,6 +2924,9 @@ for _, methodName in ipairs({
     "Divider",
     "Space",
     "Paragraph",
+    "Label",
+    "Status",
+    "Progress",
     "Code",
     "Music",
     "MusicPlayer",
@@ -2853,6 +2979,7 @@ function Seraph:CreateWindow(options)
         _flags = {},
         _popups = {},
         _popupConnections = {},
+        _notifications = {},
         _minimized = false,
         SearchEnabled = options.SearchEnabled ~= false,
     }, Window)
@@ -2860,6 +2987,9 @@ function Seraph:CreateWindow(options)
 
     if options.Icons then
         Seraph:SetIconProvider(options.Icons)
+    end
+    if options.LoadIcons then
+        Seraph:LoadIcons({Type = options.IconType or "lucide"})
     end
     if options.IconType and Seraph.IconRuntime and Seraph.IconRuntime.SetIconsType then
         pcall(Seraph.IconRuntime.SetIconsType, options.IconType)
@@ -3017,8 +3147,17 @@ function Seraph:CreateWindow(options)
     addCorner(searchSurface, 8)
     addStroke(searchSurface, window:_color("Outline"), 0.65, 1)
     window:_bind(searchSurface, "BackgroundColor3", "ElementBackground")
-    local searchIcon = window:_icon(searchSurface, options.SearchIcon or (Seraph.IconRuntime and "search" or Seraph.LogoAsset), 16, "Icon")
-    searchIcon.Position = UDim2.fromOffset(9, 7)
+    local searchIcon
+    if options.SearchIcon or Seraph.IconRuntime then
+        searchIcon = window:_icon(searchSurface, options.SearchIcon or "search", 16, "Icon")
+        searchIcon.Position = UDim2.fromOffset(9, 7)
+    else
+        searchIcon = window:_textLabel(searchSurface, "⌕", 17, "Icon", {
+            Position = UDim2.fromOffset(9, 3),
+            Size = UDim2.fromOffset(16, 24),
+            TextXAlignment = Enum.TextXAlignment.Center,
+        })
+    end
     local searchBox = create("TextBox", {
         BackgroundTransparency = 1,
         ClearTextOnFocus = false,
